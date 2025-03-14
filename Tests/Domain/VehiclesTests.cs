@@ -18,10 +18,13 @@ public class VehiclesTests
             .RuleFor(x => x.Manufacturer, f => f.Vehicle.Manufacturer())
             .RuleFor(x => x.Model, f => f.Vehicle.Model())
             .RuleFor(x => x.Year, f => f.Random.Number(1990,2025))
+            .RuleFor(x => x.StartingBid, f => f.Random.Decimal(10000))
             .RuleFor(x => x.NumberOfDoors, f => f.Random.Number(2,5))
             .RuleFor(x => x.NumberOfSeats, f => f.Random.Number(1,7))
             .RuleFor(x => x.LoadCapacity, f => f.Random.Double(500,1500));
     }
+
+    //TODO: Add Tests for base vehicle properties
 
     [Fact]
     public void Vehicle_ShouldBehaveAsHatchback()

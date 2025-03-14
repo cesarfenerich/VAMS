@@ -8,6 +8,7 @@ internal record Vehicle
     public string Manufacturer { get; }
     public string Model { get; private set; }
     public int Year { get; private set; }
+    public decimal StartingBid { get; private set; }
     public VehicleStatuses Status { get; private set; }
     public VehicleTypes Type { get; private set; }
     public DoorCount? NumberOfDoors { get; private set; } = null;
@@ -19,6 +20,7 @@ internal record Vehicle
                    string manufacturer, 
                    string model, 
                    int year, 
+                   decimal startingBid,
                    int? numberOfDoors = null, 
                    int? numberOfSeats = null, 
                    double? loadCapacity = null)
@@ -29,6 +31,7 @@ internal record Vehicle
         Manufacturer = manufacturer;
         Model = model;
         Year = year;
+        StartingBid = startingBid;
         Status = VehicleStatuses.Available;
 
         SetTypeAndAttribute(type, numberOfDoors, numberOfSeats, loadCapacity);
