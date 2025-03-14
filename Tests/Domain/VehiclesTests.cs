@@ -7,7 +7,7 @@ namespace Tests.Domain;
 public class VehiclesTests
 {
     private readonly IVehiclesService _vehiclesService;
-    private readonly Faker<AddVehicle> _addVehicleFaker; 
+    private readonly Faker<AddVehicle> _addVehicleFaker;
 
     public VehiclesTests()
     {        
