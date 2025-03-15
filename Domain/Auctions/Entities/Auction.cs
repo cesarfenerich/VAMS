@@ -6,16 +6,21 @@ internal record Auction
 {
     public long Id { get; }
 
-    public IReadOnlyCollection<Vehicle> Vehicles { get; private set; }  
+    public IReadOnlyCollection<Vehicle> Vehicles { get; private set; }
+
+    public DateTime EndDate { get; private set; }
 
     public DateTime StartedAt { get; private set; }
     public DateTime? EndedAt { get; private set; }   
 
-    public Auction(long lastId, List<Vehicle> vehicles)
+    public AuctionStatuses Status => EndedAt is not null ? AuctionStatuses.Closed : AuctionStatuses.Open;
+
+    public Auction(long lastId, List<Vehicle> vehicles, DateTime endDate)
     {
         Id = ++lastId;
         StartedAt = DateTime.UtcNow;
-        Vehicles = vehicles;
+        Vehicles = vehicles is null || vehicles.Count == 0 ? throw new AuctionsException("Auction must have at least one vehicle.") : vehicles;
+        EndDate = endDate == default ? throw new VehiclesException("EndDate is required.") : endDate;
     }    
 
     public void PlaceBid(Bid bid)
@@ -34,6 +39,18 @@ internal record Auction
     public void Close()
     {
         EndedAt = DateTime.UtcNow;
+    }
+
+    public AuctionInfo AsModel()
+    {
+        return new AuctionInfo()
+        {
+            Id = Id,
+            Vehicles = [.. Vehicles.Select(x => x.AsModel())],
+            StartDate = StartedAt,
+            EndDate = EndDate,
+            Status = Status            
+        };
     }
 } 
 

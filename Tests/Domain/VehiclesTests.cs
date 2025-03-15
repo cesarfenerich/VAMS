@@ -27,6 +27,25 @@ public class VehiclesTests
     //TODO: Add Tests for base vehicle properties
 
     [Fact]
+    public void Vehicle_ShouldHaveBasicProperties()
+    {
+        // Arrange       
+        var command = _addVehicleFaker.Generate();        
+
+        // Act
+        var vhc = _vehiclesService.AddVehicle(command);
+
+        vhc.Should().NotBeNull();
+        vhc.Id.Should().Be(vhc.Id);
+        vhc.Type.Should().Be(command.Type);
+        vhc.Manufacturer.Should().Be(command.Manufacturer);
+        vhc.Model.Should().Be(command.Model);
+        vhc.Year.Should().Be(command.Year);
+        vhc.StartingBid.Should().Be(command.StartingBid);
+        vhc.Status.Should().Be(VehicleStatuses.Available);
+    }
+
+    [Fact]
     public void Vehicle_ShouldBehaveAsHatchback()
     {
         // Arrange       

@@ -1,80 +1,80 @@
 ﻿using Bogus;
+using Domain.Shared;
+using FluentAssertions;
 
 namespace Tests.Domain;
 
 public class AuctionsTests
-{
-    //private readonly IAuctionsService _auctionsService;
-    //private readonly Faker<Auction> _auctionsFaker;
+{   
+    private readonly IAuctionsService _auctionsService;
+    private readonly IVehiclesService _vehiclesService;
+    private readonly Faker<StartAuction> _startAuctionFaker;
 
-    //public AuctionsTests()
-    //{
-    //    _auctionsService = new AuctionsService();
-    //    _auctionsFaker = new Faker<Auction>();
-    //}
+    public AuctionsTests()
+    {                
+        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService();
+        _auctionsService = AuctionsServiceFactory.CreateAuctionsService(_vehiclesService);
 
-    //[Fact]
-    //public void OpenAuction_ShouldOpenAuction_ForCar()
-    //{
-    //    // Arrange
-    //    var car = new Car { Id = 1, Type = "Sedan", Manufacturer = "Toyota", Model = "Camry", Year = 2020 };
-    //    _system.AddCar(car);
+        var _addVehicleFaker = new Faker<AddVehicle>()
+            .RuleFor(x => x.Type, f => f.PickRandom<VehicleTypes>())
+            .RuleFor(x => x.Manufacturer, f => f.Vehicle.Manufacturer())
+            .RuleFor(x => x.Model, f => f.Vehicle.Model())
+            .RuleFor(x => x.Year, f => f.Random.Number(1990, 2025))
+            .RuleFor(x => x.StartingBid, f => f.Random.Decimal(10000))
+            .RuleFor(x => x.NumberOfDoors, f => f.Random.Number(2, 5))
+            .RuleFor(x => x.NumberOfSeats, f => f.Random.Number(1, 7))
+            .RuleFor(x => x.LoadCapacity, f => f.Random.Double(500, 1500));
 
-    //    // Act
-    //    _system.OpenAuction(car.Id);
+        var addedCars = _addVehicleFaker.Generate(10).Select(x => _vehiclesService.AddVehicle(x)).ToList();       
 
-    //    // Assert
-    //    Assert.True(_system.IsAuctionOpen(car.Id));
-    //}
+        _startAuctionFaker = new Faker<StartAuction>()
+            .RuleFor(x => x.VehicleIds, f => [.. addedCars.Select(x => x.Id)])
+            .RuleFor(x => x.EndDate, f => f.Date.Future());
+    }
 
-    //[Fact]
-    //public void OpenAuction_ShouldThrowException_WhenCarDoesNotExist()
-    //{
-    //    // Act & Assert
-    //    var exception = Assert.Throws<KeyNotFoundException>(() => _system.OpenAuction(99));
-    //    Assert.Equal("Car not found.", exception.Message);
-    //}
+    [Fact]
+    public void Aunction_ShouldHaveBasicProperties()
+    {
+        // Arrange       
+        var command = _startAuctionFaker.Generate();
 
-    //[Fact]
-    //public void OpenAuction_ShouldThrowException_WhenAnotherAuctionIsActive()
-    //{
-    //    // Arrange
-    //    var car = new Car { Id = 1, Type = "Sedan", Manufacturer = "Toyota", Model = "Camry", Year = 2020 };
-    //    _system.AddCar(car);
-    //    _system.OpenAuction(car.Id);
+        // Act
+        var auction = _auctionsService.StartAuction(command);
 
-    //    // Act & Assert
-    //    var exception = Assert.Throws<InvalidOperationException>(() => _system.OpenAuction(car.Id));
-    //    Assert.Equal("Car has an active auction.", exception.Message);
-    //}
+        auction.Should().NotBeNull();
+        auction.Id.Should().Be(auction.Id);
+        auction.Vehicles.Should().HaveCount(command.VehicleIds.Count);
+        auction.EndDate.Should().Be(command.EndDate);       
+        auction.Status.Should().Be(AuctionStatuses.Open);
+    }
 
-    //[Fact]
-    //public void PlaceBid_ShouldPlaceBid_WhenBidIsHigherThanCurrentBid()
-    //{
-    //    // Arrange
-    //    var car = new Car { Id = 1, Type = "Sedan", Manufacturer = "Toyota", Model = "Camry", Year = 2020 };
-    //    _system.AddCar(car);
-    //    _system.OpenAuction(car.Id);
-    //    _system.PlaceBid(car.Id, 1000);
 
-    //    // Act
-    //    _system.PlaceBid(car.Id, 1500);
+    [Fact]
+    public void StartAuction_ShouldInitializeVehiclesAuction()
+    {
+       
+    }
 
-    //    // Assert
-    //    Assert.Equal(1500, _system.GetCurrentBid(car.Id));
-    //}
+    [Fact]
+    public void StartAuction_ShouldThrowException_WhenAnyVehicleDoesNotExist()
+    {
+       
+    }
 
-    //[Fact]
-    //public void PlaceBid_ShouldThrowException_WhenBidIsLowerThanCurrentBid()
-    //{
-    //    // Arrange
-    //    var car = new Car { Id = 1, Type = "Sedan", Manufacturer = "Toyota", Model = "Camry", Year = 2020 };
-    //    _system.AddCar(car);
-    //    _system.OpenAuction(car.Id);
-    //    _system.PlaceBid(car.Id, 1000);
+    [Fact]
+    public void StartAuction_ShouldThrowException_WhenAnotherAuctionIsActive()
+    {
+       
+    }
 
-    //    // Act & Assert
-    //    var exception = Assert.Throws<InvalidOperationException>(() => _system.PlaceBid(car.Id, 500));
-    //    Assert.Equal("Bid amount must be higher than the current highest bid.", exception.Message);
-    //}
+    [Fact]
+    public void PlaceBid_ShouldPlaceBid_WhenBidIsHigherThanCurrentBid()
+    {        
+    }
+
+    [Fact]
+    public void PlaceBid_ShouldThrowException_WhenBidIsLowerThanCurrentBid()
+    {
+        
+    }
 }

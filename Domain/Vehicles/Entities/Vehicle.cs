@@ -1,11 +1,10 @@
 ﻿using Domain.Shared;
 
 namespace Domain.Vehicles;
-
 internal record Vehicle
 {
     public long Id { get; }
-    public string Manufacturer { get; }
+    public string Manufacturer { get; private set; }
     public string Model { get; private set; }
     public int Year { get; private set; }
     public decimal StartingBid { get; private set; }
@@ -27,15 +26,16 @@ internal record Vehicle
     {
         //This ensure that the unique identifier is not already in use by another vehicle in the inventory
         //No need to raise an exception
-        Id = ++lastId;        
-        Manufacturer = manufacturer;
-        Model = model;
-        Year = year;
-        StartingBid = startingBid;
-        Status = VehicleStatuses.Available;
+        Id = ++lastId;
 
         SetTypeAndAttribute(type, numberOfDoors, numberOfSeats, loadCapacity);
-    }
+
+        Manufacturer = string.IsNullOrEmpty(manufacturer) ? throw new VehiclesException("Manufacturer is required.") : manufacturer;
+        Model = string.IsNullOrEmpty(model) ? throw new VehiclesException("Model is required.") : model;
+        Year = year <= 0 ? throw new VehiclesException("Year is required.") : year;
+        StartingBid = startingBid <= 0 ? throw new VehiclesException("StartingBid is required.") : startingBid;
+        Status = VehicleStatuses.Available;            
+    }   
 
     private void SetTypeAndAttribute(VehicleTypes type, 
                                     int? numberOfDoors = null, 
@@ -74,6 +74,7 @@ internal record Vehicle
             Year = Year,
             Status = Status,
             Type = Type,
+            StartingBid = StartingBid,
             NumberOfDoors = NumberOfDoors.HasValue ? NumberOfDoors.Value.Value : null,
             NumberOfSeats = NumberOfSeats.HasValue ? NumberOfSeats.Value.Value : null, 
             LoadCapacity = LoadCapacity.HasValue ? LoadCapacity.Value.Value : null,

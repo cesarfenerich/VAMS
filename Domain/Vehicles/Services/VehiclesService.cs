@@ -1,4 +1,5 @@
-﻿using Domain.Shared;
+﻿using Domain.Auctions;
+using Domain.Shared;
 
 namespace Domain.Vehicles;
 
@@ -6,9 +7,7 @@ internal class VehiclesService : IVehiclesService
 {
     private readonly List<Vehicle> _inventory = [];
 
-    public VehiclesView GetAllVehicles() => new(_inventory.Select(x => x.AsModel()));
-
-    public VehicleInfo? GetVehicleById(long id) => _inventory.FirstOrDefault(vehicle => vehicle.Id == id)?.AsModel();
+    public VehiclesView GetAllVehicles() => new(_inventory.Select(x => x.AsModel()));    
 
     public VehicleInfo AddVehicle(AddVehicle command)
     {        
@@ -19,13 +18,21 @@ internal class VehiclesService : IVehiclesService
                               command.Manufacturer,
                               command.Model,
                               command.Year,
+                              command.StartingBid,
                               command.NumberOfDoors,
                               command.NumberOfSeats,
                               command.LoadCapacity);     
         _inventory.Add(vhc);
 
         return vhc.AsModel();
-    }        
+    }
+
+    public VehicleInfo GetVehicleById(long id)
+    {
+        var vhc = _inventory.FirstOrDefault(vehicle => vehicle.Id == id)?.AsModel();
+
+        return vhc ?? throw new VehiclesException($"Vehicle with id {id} not found.");
+    }
 
     public VehiclesView SearchVehicles(Dictionary<VehicleSearchFields, dynamic> search)
     {    
