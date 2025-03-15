@@ -1,30 +1,24 @@
-﻿using Domain.Auctions;
-using Domain.Shared;
+﻿using Domain.Shared;
 
 namespace Domain.Vehicles;
 
 internal class VehiclesService : IVehiclesService
 {
-    private readonly List<Vehicle> _inventory = [];
+    private List<Vehicle> _inventory = [];
 
     public VehiclesView GetAllVehicles() => new(_inventory.Select(x => x.AsModel()));    
 
     public VehicleInfo AddVehicle(AddVehicle command)
     {        
-        var lastId = _inventory.Count != 0 ? _inventory.Max(vhc => vhc.Id) : 1;
-
-        var vhc = new Vehicle(lastId,
-                              command.Type,
-                              command.Manufacturer,
-                              command.Model,
-                              command.Year,
-                              command.StartingBid,
-                              command.NumberOfDoors,
-                              command.NumberOfSeats,
-                              command.LoadCapacity);     
-        _inventory.Add(vhc);
-
-        return vhc.AsModel();
+        return new Vehicle(_inventory,                             
+                           command.Type,
+                           command.Manufacturer,
+                           command.Model,
+                           command.Year,
+                           command.StartingBid,
+                           command.NumberOfDoors,
+                           command.NumberOfSeats,
+                           command.LoadCapacity).AsModel();
     }
 
     public VehicleInfo GetVehicleById(long id)
@@ -63,5 +57,23 @@ internal class VehiclesService : IVehiclesService
         }).ToList();      
 
         return new VehiclesView(result.Select(y => y.AsModel()));
+    }
+
+    public VehiclesView UpdateVehiclesStatus(UpdateVehiclesStatus command)
+    {
+        if (command.VehicleIds is null || command.VehicleIds.Count == 0)
+            throw new VehiclesException("No vehicles were identified.");
+
+        if(!Enum.IsDefined(command.Status))
+            throw new VehiclesException("Invalid vehicle status.");
+
+        var vehicles = _inventory.Where(x => command.VehicleIds.Contains(x.Id)).ToList();
+
+        foreach (var vhc in vehicles)
+        {
+            vhc.UpdateStatus(ref _inventory, command.Status);
+        }
+
+        return new VehiclesView(vehicles.Select(y => y.AsModel()));
     }
 }

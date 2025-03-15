@@ -22,9 +22,7 @@ public class VehiclesTests
             .RuleFor(x => x.NumberOfDoors, f => f.Random.Number(2,5))
             .RuleFor(x => x.NumberOfSeats, f => f.Random.Number(1,7))
             .RuleFor(x => x.LoadCapacity, f => f.Random.Double(500,1500));
-    }
-
-    //TODO: Add Tests for base vehicle properties
+    }    
 
     [Fact]
     public void Vehicle_ShouldHaveBasicProperties()
@@ -133,6 +131,35 @@ public class VehiclesTests
         vehicle.Should()
                .NotBeNull()
                .And.BeEquivalentTo(_vehiclesService.GetVehicleById(vehicle.Id));     
+    }
+
+    [Fact]
+    public void AddVehicle_ShouldThrowException_WhenAnyBasicInfoIsBad()
+    {
+        // Arrange       
+        var commands = _addVehicleFaker.Generate(4);
+
+        commands[0].Manufacturer = string.Empty;
+        commands[1].Model = string.Empty;
+        commands[2].Year = 0;
+        commands[3].StartingBid = 0;     
+
+        // Act & Assert
+        _vehiclesService.Invoking(x => x.AddVehicle(commands[0]))
+                        .Should().Throw<VehiclesException>()
+                        .WithMessage("Manufacturer is required.");
+
+        _vehiclesService.Invoking(x => x.AddVehicle(commands[1]))
+                        .Should().Throw<VehiclesException>()
+                        .WithMessage("Model is required.");
+
+        _vehiclesService.Invoking(x => x.AddVehicle(commands[2]))
+                        .Should().Throw<VehiclesException>()
+                        .WithMessage("Year is required.");
+
+        _vehiclesService.Invoking(x => x.AddVehicle(commands[3]))
+                        .Should().Throw<VehiclesException>()
+                        .WithMessage("StartingBid is required.");
     }
 
     [Fact]
