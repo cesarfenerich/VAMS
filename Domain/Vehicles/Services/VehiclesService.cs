@@ -6,19 +6,32 @@ internal class VehiclesService : IVehiclesService
 {
     private List<Vehicle> _inventory = [];
 
-    public VehiclesView GetAllVehicles() => new(_inventory.Select(x => x.AsModel()));    
+    IAuctionsService _auctionsService;
+
+    public VehiclesService(IAuctionsService auctionsService)
+    {
+        _auctionsService = auctionsService;
+    }
+
+    public VehiclesView GetAvailableVehicles() 
+        => new([.. _inventory.Where(x => x.Status == VehicleStatuses.Available).Select(x => x.AsModel())]);    
 
     public VehicleInfo AddVehicle(AddVehicle command)
-    {        
-        return new Vehicle(_inventory,                             
-                           command.Type,
-                           command.Manufacturer,
-                           command.Model,
-                           command.Year,
-                           command.StartingBid,
-                           command.NumberOfDoors,
-                           command.NumberOfSeats,
-                           command.LoadCapacity).AsModel();
+    {
+        var lastId = _inventory.Count != 0 ? _inventory.Max(vhc => vhc.Id) : 1;
+
+        var vehicle =  new Vehicle(lastId,                             
+                                   command.Type,
+                                   command.Manufacturer,
+                                   command.Model,
+                                   command.Year,
+                                   command.StartingBid,
+                                   command.NumberOfDoors,
+                                   command.NumberOfSeats,
+                                   command.LoadCapacity);
+        _inventory.Add(vehicle);
+
+        return vehicle.AsModel();
     }
 
     public VehicleInfo GetVehicleById(long id)
@@ -56,24 +69,33 @@ internal class VehiclesService : IVehiclesService
 
         }).ToList();      
 
-        return new VehiclesView(result.Select(y => y.AsModel()));
-    }
+        return new VehiclesView([..result.Select(y => y.AsModel())]);
+    }   
 
-    public VehiclesView UpdateVehiclesStatus(UpdateVehiclesStatus command)
+    public void UpdateInventoryByAuction(long auctionId)
     {
-        if (command.VehicleIds is null || command.VehicleIds.Count == 0)
-            throw new VehiclesException("No vehicles were identified.");
+        var auction = _auctionsService.GetAuctionById(auctionId);       
 
-        if(!Enum.IsDefined(command.Status))
-            throw new VehiclesException("Invalid vehicle status.");
+        if (auction.Status == AuctionStatuses.Closed)
+            throw new VehiclesException($"Cannot update because the auction ({auction.Id}) is closed.");
 
-        var vehicles = _inventory.Where(x => command.VehicleIds.Contains(x.Id)).ToList();
+        var vhcIds = auction.Vehicles.Select(x => x.Id).ToList();
+        var vhcs = _inventory.Where(x => vhcIds.Contains(x.Id)).ToList();
 
-        foreach (var vhc in vehicles)
+        vhcs.ForEach(vhc => 
         {
-            vhc.UpdateStatus(ref _inventory, command.Status);
-        }
+            var status = auction.Vehicles.First(x => x.Id == vhc.Id).Status;
 
-        return new VehiclesView(vehicles.Select(y => y.AsModel()));
+            _inventory.Remove(vhc);
+
+            if (status == VehicleStatuses.InAuction)
+                vhc.Reserve();
+            else if (status == VehicleStatuses.Sold)
+                vhc.Sell();
+            else
+                vhc.Release();           
+
+            _inventory.Add(vhc);                   
+        });       
     }
 }

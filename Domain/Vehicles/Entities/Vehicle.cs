@@ -3,8 +3,6 @@
 namespace Domain.Vehicles;
 internal record Vehicle
 {
-    private readonly List<Vehicle> _inventory = [];
-
     public long Id { get; }
     public string Manufacturer { get; private set; }
     public string Model { get; private set; }
@@ -16,7 +14,7 @@ internal record Vehicle
     public SeatCount? NumberOfSeats { get; private set; } = null;
     public Capacity? LoadCapacity { get; private set; } = null;
 
-    public Vehicle(List<Vehicle> inventory,
+    public Vehicle(long lastId,
                    VehicleTypes type, 
                    string manufacturer, 
                    string model, 
@@ -25,12 +23,10 @@ internal record Vehicle
                    int? numberOfDoors = null, 
                    int? numberOfSeats = null, 
                    double? loadCapacity = null)
-    {
-        _inventory = inventory;
-
+    {      
         //This ensure that the unique identifier is not already in use by another vehicle in the inventory
         //No need to raise an exception
-        Id = _inventory.Count != 0 ? _inventory.Max(vhc => vhc.Id) : 1;
+        Id = ++lastId; 
 
         SetTypeAndAttribute(type, numberOfDoors, numberOfSeats, loadCapacity);
 
@@ -38,9 +34,7 @@ internal record Vehicle
         Model = string.IsNullOrEmpty(model) ? throw new VehiclesException("Model is required.") : model;
         Year = year <= 0 ? throw new VehiclesException("Year is required.") : year;
         StartingBid = startingBid <= 0 ? throw new VehiclesException("StartingBid is required.") : startingBid;
-        Status = VehicleStatuses.Available;
-
-        _inventory.Add(this);
+        Status = VehicleStatuses.Available;       
     }   
 
     private void SetTypeAndAttribute(VehicleTypes type, 
@@ -70,12 +64,9 @@ internal record Vehicle
         }
     }
 
-    public void UpdateStatus(ref List<Vehicle> inventory, VehicleStatuses status)
-    {
-        inventory.Remove(this);
-        Status = status;       
-        inventory.Add(this);
-    }
+    public void Reserve() => Status = VehicleStatuses.InAuction;
+    public void Release() => Status = VehicleStatuses.Available;   
+    public void Sell() => Status = VehicleStatuses.Sold;
 
     public VehicleInfo AsModel()
     {

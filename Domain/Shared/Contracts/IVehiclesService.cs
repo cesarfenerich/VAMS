@@ -3,8 +3,8 @@
 public interface IVehiclesService
 {    
     VehicleInfo AddVehicle(AddVehicle command);
-    VehiclesView GetAllVehicles();
+    VehiclesView GetAvailableVehicles();
     VehicleInfo GetVehicleById(long id);
     VehiclesView SearchVehicles(Dictionary<VehicleSearchFields, dynamic> search);
-    VehiclesView UpdateVehiclesStatus(UpdateVehiclesStatus command);
+    void UpdateInventoryByAuction(long auctionId);
 }

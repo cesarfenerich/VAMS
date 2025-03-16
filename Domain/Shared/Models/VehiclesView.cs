@@ -1,6 +1,6 @@
 ﻿namespace Domain.Shared;
 
-public class VehiclesView(IEnumerable<VehicleInfo> vehicles)
+public class VehiclesView(List<VehicleInfo> vehicles)
 {
-    public IEnumerable<VehicleInfo> Vehicles { get; private set; } = vehicles;
+    public List<VehicleInfo> Vehicles { get; set; } = vehicles;
 }

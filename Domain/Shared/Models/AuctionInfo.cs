@@ -3,9 +3,8 @@
 public class AuctionInfo
 {
     public long Id { get; set; }
-    public List<VehicleInfo> Vehicles { get; set; } = [];
-    public DateTime StartDate { get; set; }
-    public DateTime? EndDate { get; set; }
-    public AuctionStatuses? Status { get; set; }
-
+    public List<AuctionVehicleInfo> Vehicles { get; set; } = [];
+    public DateTime Start { get; set; }
+    public DateTime End { get; set; }
+    public AuctionStatuses Status { get; set; }
 }

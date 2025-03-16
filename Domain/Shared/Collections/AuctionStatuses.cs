@@ -2,6 +2,7 @@
 
 public enum AuctionStatuses
 {
+    Created,
     Open,
     Closed
 }

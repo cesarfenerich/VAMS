@@ -14,7 +14,7 @@ Simple Car Auction Management System. The system should handle different types o
 ## Technologies
 - **IDE:** Visual Studio 2022
 - **Design:** Domain Driven Design, Design Patterns
-- **Tests:** TDD, xUnit, Bogus and FluentAssertions
+- **Tests:** TDD, xUnit, Bogus, NSubstitute and FluentAssertions
 - **Code:** .NET Core 9.0, C# 12.0, Git
 
 ## ContextMap

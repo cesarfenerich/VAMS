@@ -4,8 +4,8 @@ namespace Domain.Shared;
 
 public static class VehiclesServiceFactory
 {
-    public static IVehiclesService CreateVehiclesService()
+    public static IVehiclesService CreateVehiclesService(IAuctionsService auctionsService)
     {
-        return new VehiclesService();
+        return new VehiclesService(auctionsService);
     }
 }

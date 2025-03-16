@@ -1,4 +1,5 @@
 ﻿using Domain.Shared;
+
 namespace Domain.Auctions;
 
 internal class AuctionsService : IAuctionsService
@@ -10,52 +11,73 @@ internal class AuctionsService : IAuctionsService
     public AuctionsService(IVehiclesService vehiclesService)
     {
         _vehiclesService = vehiclesService;
-    } 
+    }
+
+    public AuctionInfo GetAuctionById(long id)
+    {
+        var auction = _inventory.FirstOrDefault(acn => acn.Id == id)?.AsModel();
+
+        return auction ?? throw new AuctionsException($"Auction with id {id} not found.");
+    }
 
     public AuctionInfo StartAuction(StartAuction command)
     {
-        if (command.VehicleIds is null || command.VehicleIds.Count == 0)
-            throw new AuctionsException("Auction must have at least one vehicle.");       
-
         var lastId = _inventory.Count != 0 ? _inventory.Max(act => act.Id) : 1;
 
-        return new Auction(lastId, ValidateVehiclesForAuction(command), command.EndDate).AsModel();
+        var auction = new Auction(lastId, 
+                                  ValidateVehiclesForAuction(command), 
+                                  command.EndDate);
+        auction.Open();
+        _inventory.Add(auction);
+
+        _vehiclesService.UpdateInventoryByAuction(auction.Id);
+
+        return auction.AsModel();
+    }
+    public AuctionInfo PlaceBid(PlaceBid command)
+    {
+        var auction = _inventory.FirstOrDefault(x => x.Id == command.AuctionId) ??
+                      throw new AuctionsException($"Auction {command.AuctionId} was not found.");        
+
+        auction.PlaceBid(command.VehicleId, command.Amount);
+
+        return auction.AsModel();
+    }
+
+    public AuctionInfo EndAuction(long auctionId)
+    {
+        var auction = _inventory.FirstOrDefault(x => x.Id == auctionId) ?? 
+                      throw new AuctionsException($"Auction {auctionId} was not found.");   
+
+        _inventory.Remove(auction);
+        auction.Close();
+        _inventory.Add(auction);       
+
+        _vehiclesService.UpdateInventoryByAuction(auction.Id);      
+
+        return auction.AsModel();
     }
 
     private List<Vehicle> ValidateVehiclesForAuction(StartAuction command)
     {
         var availableVehicles = new List<Vehicle>();
-        foreach (var id in command.VehicleIds)
-        {
-            var vehicle = _vehiclesService.GetVehicleById(id);           
+        var vehicles = _vehiclesService.GetAvailableVehicles().Vehicles.ToList();
 
-            var isAlreadyInAuction = _inventory.Where(x => x.Status == AuctionStatuses.Open)
-                                               .Any(x => x.Vehicles.Any(y => y.Id == id));
+        if (vehicles.Count == 0)
+            throw new AuctionsException($"There is no vehicle to be auctioned.");
 
-            if (isAlreadyInAuction || vehicle.Status != VehicleStatuses.Available)
-                throw new AuctionsException($"Vehicle with id ({id}) is not available for auction.");
+        var vehicleIds = vehicles.Select(x => x.Id).ToList();
 
-            availableVehicles.Add(new Vehicle(vehicle.Id, vehicle.StartingBid, vehicle.Status));
-        }
+        //If it's missing any from the informed available vehicles.
+        if (command.VehicleIds.Any(x => !vehicleIds.Any(y => x == y)))        
+            throw new AuctionsException($"One or more vehicles are not available to be auctioned.");
 
+        vehicles.ForEach(vhc => availableVehicles.Add(new Vehicle(vhc.Id, 
+                                                                  vhc.Type,
+                                                                  vhc.Manufacturer,
+                                                                  vhc.Model,
+                                                                  vhc.Year,
+                                                                  vhc.StartingBid)));
         return availableVehicles;
-    }   
-
-    public AuctionInfo EndAuction(EndAuction command)
-    {
-        var auction = _inventory.FirstOrDefault(x => x.Id == command.AuctionId) ?? 
-                      throw new AuctionsException($"Auction {command.AuctionId} was not found.");
-
-        auction.Close(ref _inventory);
-
-        UpdateVehiclesStatus upCommand = new()
-        {
-            VehicleIds = [.. auction.Vehicles.Where(x => x.Status == VehicleStatuses.Sold).Select(y => y.Id)],
-            Status = VehicleStatuses.Sold
-        };
-
-        _vehiclesService.UpdateVehiclesStatus(upCommand);      
-
-        return auction.AsModel();
-    }   
+    }
 }

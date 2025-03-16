@@ -1,17 +1,21 @@
 ﻿using Bogus;
 using Domain.Shared;
 using FluentAssertions;
+using Moq;
 
 namespace Tests.Domain;
 
 public class VehiclesTests
 {
+    private readonly Mock<IAuctionsService> _mockAuctionsService;
     private readonly IVehiclesService _vehiclesService;
-    private readonly Faker<AddVehicle> _addVehicleFaker;
+    private readonly Faker<AddVehicle> _addVehicleFaker;   
+    private readonly Faker<AuctionInfo> _auctionFaker;
 
     public VehiclesTests()
-    {        
-        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService();
+    {
+        _mockAuctionsService = new Mock<IAuctionsService>();
+        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService(_mockAuctionsService.Object);       
 
         _addVehicleFaker = new Faker<AddVehicle>()
             .RuleFor(x => x.Type, f => f.PickRandom<VehicleTypes>())
@@ -22,7 +26,50 @@ public class VehiclesTests
             .RuleFor(x => x.NumberOfDoors, f => f.Random.Number(2,5))
             .RuleFor(x => x.NumberOfSeats, f => f.Random.Number(1,7))
             .RuleFor(x => x.LoadCapacity, f => f.Random.Double(500,1500));
-    }    
+
+        var _bidFaker = new Faker<BidInfo>()
+            .RuleFor(x => x.Amount, f => f.Random.Decimal(1, 100000))
+            .RuleFor(x => x.IsWinningBid, f => f.Random.Bool());
+
+        var _auctionVehicleFaker = new Faker<AuctionVehicleInfo>()
+            .RuleFor(x => x.Id, f => f.Random.Number(1, 1000))
+            .RuleFor(x => x.Type, f => f.PickRandom<VehicleTypes>())
+            .RuleFor(x => x.Manufacturer, f => f.Vehicle.Manufacturer())
+            .RuleFor(x => x.Model, f => f.Vehicle.Model())
+            .RuleFor(x => x.Year, f => f.Random.Number(1990, 2025))
+            .RuleFor(x => x.StartingBid, f => f.Random.Decimal(10000))
+            .RuleFor(x => x.WinnerBid, f => f.Random.Decimal(10000))
+            .RuleFor(x => x.Bids, f => _bidFaker.Generate(5))
+            .RuleFor(x => x.Status, f => f.PickRandom<VehicleStatuses>());
+
+        _auctionFaker = new Faker<AuctionInfo>()
+            .RuleFor(x => x.Id, f => f.Random.Number(1, 1000))
+            .RuleFor(x => x.Vehicles, f => _auctionVehicleFaker.Generate(10))
+            .RuleFor(x => x.Start, f => f.Date.Past())
+            .RuleFor(x => x.End, f => f.Date.Future())
+            .RuleFor(x => x.Status, f => f.PickRandom<AuctionStatuses>());
+    }
+
+    private AuctionInfo GenerateOpenAuction(VehicleStatuses statusForVehicles)
+    {
+        var commands = _addVehicleFaker.Generate(10);
+        commands.ForEach(c => _vehiclesService.AddVehicle(c));
+
+        var addedVehicles = _vehiclesService.GetAvailableVehicles();
+        var addedVehicleIds = addedVehicles.Vehicles.Select(x => x.Id).ToList();
+        var auction = _auctionFaker.Generate();
+
+        foreach (var vehicle in auction.Vehicles)
+        {
+            vehicle.Id = addedVehicleIds.Last();
+            vehicle.Status = statusForVehicles;
+            addedVehicleIds.Remove(addedVehicleIds.Last());
+        }
+
+        auction.Status = AuctionStatuses.Open;
+
+        return auction;
+    }
 
     [Fact]
     public void Vehicle_ShouldHaveBasicProperties()
@@ -42,7 +89,6 @@ public class VehiclesTests
         vhc.StartingBid.Should().Be(command.StartingBid);
         vhc.Status.Should().Be(VehicleStatuses.Available);
     }
-
     [Fact]
     public void Vehicle_ShouldBehaveAsHatchback()
     {
@@ -61,7 +107,6 @@ public class VehiclesTests
         hatch.NumberOfSeats.Should().BeNull();
         hatch.LoadCapacity.Should().BeNull();       
     }
-
     [Fact]
     public void Vehicle_ShouldBehaveAsSedan()
     {
@@ -80,7 +125,6 @@ public class VehiclesTests
         sedan.NumberOfSeats.Should().BeNull();
         sedan.LoadCapacity.Should().BeNull();       
     }
-
     [Fact]
     public void Vehicle_ShouldBehaveAsSUV()
     {
@@ -99,7 +143,6 @@ public class VehiclesTests
         suv.NumberOfDoors.Should().BeNull();
         suv.LoadCapacity.Should().BeNull();       
     }
-
     [Fact]
     public void Vehicle_ShouldBehaveAsTruck()
     {
@@ -118,7 +161,6 @@ public class VehiclesTests
         truck.NumberOfDoors.Should().BeNull();
         truck.NumberOfSeats.Should().BeNull();
     }
-
     [Fact]
     public void AddVehicle_ShouldIncrementInventory()
     {
@@ -132,7 +174,6 @@ public class VehiclesTests
                .NotBeNull()
                .And.BeEquivalentTo(_vehiclesService.GetVehicleById(vehicle.Id));     
     }
-
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenAnyBasicInfoIsBad()
     {
@@ -161,7 +202,6 @@ public class VehiclesTests
                         .Should().Throw<VehiclesException>()
                         .WithMessage("StartingBid is required.");
     }
-
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenVehicleTypeIsBad()
     {
@@ -175,7 +215,6 @@ public class VehiclesTests
                         .Should().Throw<VehiclesException>()
                         .WithMessage("Invalid vehicle type.");
     }
-
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenNumberOfDoorsIsBad()
     {
@@ -197,7 +236,6 @@ public class VehiclesTests
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"Door count is ({commands[1].NumberOfDoors}) and should be between 2 and 5.");       
     }
-
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenNumberOfSeatsIsBad()
     {
@@ -212,7 +250,6 @@ public class VehiclesTests
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"Seat count is ({command.NumberOfSeats}) and must be at least 1.");       
     }
-
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenLoadCapacityIsBad()
     {
@@ -227,7 +264,6 @@ public class VehiclesTests
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"Capacity cannot be negative ({command.LoadCapacity}).");      
     }   
-
     [Fact]
     public void SearchVehicles_ShouldReturnOnlyOneMatchingVehicle()
     {
@@ -254,7 +290,6 @@ public class VehiclesTests
         results.Vehicles.Should()
                         .OnlyContain(x => x.Id == vhc.Id);
     }
-
     [Fact]
     public void SearchVehicles_ShouldReturnVehiclesFilteredByType()
     {
@@ -281,7 +316,6 @@ public class VehiclesTests
                         .And.OnlyContain(x => x.Type == type)
                         .And.HaveCountGreaterThan(1);     
     }
-
     [Fact]
     public void SearchVehicles_ShouldReturnVehiclesFilteredByManufacturerOrModel()
     {
@@ -310,12 +344,11 @@ public class VehiclesTests
                         .NotBeNullOrEmpty()
                         .And.OnlyContain(x => x.Manufacturer == manufacturer || x.Model == model);                      
     }
-
     [Fact]
     public void SearchVehicles_ShouldReturnVehiclesFilteredByYear()
     {
         // Arrange
-        _addVehicleFaker.Generate(100)
+        _addVehicleFaker.Generate(1000)
                         .ForEach(c => _vehiclesService.AddVehicle(c));
 
         var year = new Faker().Random.Number(1990, 2025);
@@ -336,7 +369,6 @@ public class VehiclesTests
                         .NotBeNullOrEmpty()
                         .And.OnlyContain(x => x.Year == year);
     }
-
     [Fact]
     public void SearchVehicles_ShouldNotReturnVehicles()
     {
@@ -364,7 +396,6 @@ public class VehiclesTests
 
         results.Vehicles.Should().BeEmpty();
     }
-
     [Fact]
     public void SearchVehicles_ShouldThrowException_WhenThereIsNoSearchCriteria()
     {
@@ -376,4 +407,91 @@ public class VehiclesTests
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"At least one field is required to Search a vehicle.");
     }
+    [Fact]
+    public void UpdateInventoryByAuction_ShouldUpdateVehicleStatusProperly()
+    {
+        //Arrange    
+        var auction = GenerateOpenAuction(new Faker().PickRandom<VehicleStatuses>());
+
+        _mockAuctionsService.Setup(x => x.GetAuctionById(auction.Id))
+                            .Returns(auction);
+        //Act
+        _vehiclesService.UpdateInventoryByAuction(auction.Id);
+
+        //Assert
+        _mockAuctionsService.Verify(x => x.GetAuctionById(auction.Id), Times.Once);       
+
+        foreach (var vhc in auction.Vehicles)
+        {
+            var vehicle = _vehiclesService.GetVehicleById(vhc.Id);          
+
+            vehicle.Should().NotBeNull();
+            vehicle.Status.Should().Be(vhc.Status);
+        }
+    }   
+    [Fact]
+    public void UpdateInventoryByAuction_ShouldThrowException_WhenAuctionIsClosed()
+    {
+        var auction = _auctionFaker.Generate();
+        auction.Status = AuctionStatuses.Closed;
+
+        _mockAuctionsService.Setup(x => x.GetAuctionById(auction.Id))
+                            .Returns(auction);      
+
+        _vehiclesService.Invoking(x => x.UpdateInventoryByAuction(auction.Id))
+                            .Should().Throw<VehiclesException>()
+                            .WithMessage($"Cannot update because the auction ({auction.Id}) is closed.");
+    }    
+    [Fact]
+    public void GetAvailableVehicles_ShouldReturnOnlyAvailableVehicles()
+    {
+        //Arrange
+        var commands = _addVehicleFaker.Generate(10);
+        commands.ForEach(c => _vehiclesService.AddVehicle(c));
+
+        //Act
+        var availableVehicles = _vehiclesService.GetAvailableVehicles();
+
+        //Assert
+        availableVehicles.Should().NotBeNull();
+        availableVehicles.Vehicles.Should().NotBeNull();
+        availableVehicles.Vehicles.Should().HaveCount(10);
+        availableVehicles.Vehicles.Should().OnlyContain(x => x.Status == VehicleStatuses.Available);
+    }
+    [Fact]
+    public void GetAvailableVehicles_ShouldReturnEmpty()
+    {
+        //Arrange
+        var auction = GenerateOpenAuction(VehicleStatuses.Sold);
+
+        _mockAuctionsService.Setup(x => x.GetAuctionById(auction.Id))
+                            .Returns(auction);
+        //Act
+        _vehiclesService.UpdateInventoryByAuction(auction.Id);
+
+        var availableVehicles = _vehiclesService.GetAvailableVehicles();
+
+        //Assert
+        availableVehicles.Should().NotBeNull();
+        availableVehicles.Vehicles.Should().NotBeNull();
+        availableVehicles.Vehicles.Should().HaveCount(0);
+    }
+    [Fact]
+    public void GetVehicleById_ShouldReturnVehicleInfo()
+    {
+        var command = _addVehicleFaker.Generate();
+        var addedVehicle = _vehiclesService.AddVehicle(command);
+        var returedVehicle = _vehiclesService.GetVehicleById(addedVehicle.Id);
+
+        returedVehicle.Should()
+                      .NotBeNull()
+                      .And.BeEquivalentTo(addedVehicle);
+    }
+    [Fact]
+    public void GetVehicleById_ShouldThrowException_WhenVehicleIsNotFound()
+    {
+        _vehiclesService.Invoking(x => x.GetVehicleById(99999))
+                        .Should().Throw<VehiclesException>()
+                        .WithMessage("Vehicle with id 99999 not found.");
+    }    
 }
