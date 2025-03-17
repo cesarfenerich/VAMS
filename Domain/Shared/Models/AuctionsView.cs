@@ -1,6 +1,6 @@
 ﻿namespace Domain.Shared;
 
-public class AuctionsView(IEnumerable<AuctionInfo> auctions)
+public class AuctionsView(List<AuctionInfo> auctions)
 {
-    public IEnumerable<AuctionInfo> Auction { get; private set; } = auctions;
+    public List<AuctionInfo> Auctions { get; set; } = auctions;
 }

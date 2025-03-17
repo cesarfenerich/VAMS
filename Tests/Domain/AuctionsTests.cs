@@ -1,4 +1,5 @@
 ﻿using Bogus;
+using Domain.Auctions;
 using Domain.Shared;
 using FluentAssertions;
 using NSubstitute;
@@ -7,14 +8,22 @@ namespace Tests.Domain;
 
 public class AuctionsTests
 {
+    private readonly AuctionsService _auctionsService;
+    private readonly IAuctionsHandler _auctionsHandler;   
+
+    private readonly IVehiclesHandler _mockVehiclesHandler;
     private readonly IVehiclesService _mockVehiclesService;
-    private readonly IAuctionsService _auctionsService;
     private readonly Faker<VehicleInfo> _vehiclesFaker;   
 
     public AuctionsTests()
     {
-        _mockVehiclesService = Substitute.For<IVehiclesService>();
-        _auctionsService = AuctionsServiceFactory.CreateAuctionsService(_mockVehiclesService);
+        _mockVehiclesHandler = Substitute.For<IVehiclesHandler>();
+        _mockVehiclesService = Substitute.For<IVehiclesService>();        
+
+        _auctionsService = AuctionsServiceFactory.CreateAuctionsService(_mockVehiclesService, 
+                                                                        _mockVehiclesHandler);
+
+        _auctionsHandler = AuctionsServiceFactory.CreateAuctionsHandler(_auctionsService);
 
         _vehiclesFaker = new Faker<VehicleInfo>()
             .RuleFor(x => x.Id, f => f.Random.Number(1, 1000))
@@ -32,11 +41,7 @@ public class AuctionsTests
         var faker = _vehiclesFaker.RuleFor(x => x.Status, f => addedVehicleStatuses);
         var vehicles = faker.Generate(vehiclesToAdd);
 
-        var auctionCommand = new StartAuction
-        {
-            VehicleIds = [.. vehicles.Select(x => x.Id)],
-            EndDate = endDate
-        };
+        var auctionCommand = new StartAuction([.. vehicles.Select(x => x.Id)], endDate);
 
         _mockVehiclesService.GetAvailableVehicles().Returns(new VehiclesView(vehicles));
 
@@ -48,12 +53,14 @@ public class AuctionsTests
         // Arrange       
         StartAuction command = GenerateStartAuctionCommand(10,
                                                            VehicleStatuses.Available,
-                                                           new Faker().Date.Future());   
+                                                           new Faker().Date.Future());
         // Act
-        var auction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);
 
-        _mockVehiclesService.Received().GetAvailableVehicles();
-        _mockVehiclesService.Received().UpdateInventoryByAuction(auction.Id);
+        var auction = _auctionsService.GetAuctions().Auctions.First();
+
+        //Assert
+        _mockVehiclesService.Received().GetAvailableVehicles();      
 
         auction.Should().NotBeNull();
         auction.Id.Should().Be(auction.Id);
@@ -67,9 +74,9 @@ public class AuctionsTests
         // Arrange            
         StartAuction command = GenerateStartAuctionCommand(10,
                                                            VehicleStatuses.Available,
-                                                           default);     
-        // Act
-        _auctionsService.Invoking(x => x.StartAuction(command))
+                                                           default);
+        // Act        
+        _auctionsHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("Invalid auction end date.");
     }
@@ -81,7 +88,7 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            new Faker().Date.Future());  
         // Act & Assert
-        _auctionsService.Invoking(x => x.StartAuction(command))
+        _auctionsHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("There is no vehicle to be auctioned.");       
     }
@@ -92,19 +99,15 @@ public class AuctionsTests
         var faker = _vehiclesFaker.RuleFor(x => x.Status, f => VehicleStatuses.Available);
         var vehicles = faker.Generate(10);
 
-        var command = new StartAuction
-        {
-            VehicleIds = [.. vehicles.Select(x => x.Id)],
-            EndDate = new Faker().Date.Future()
-        };
-
+        var command = new StartAuction([.. vehicles.Select(x => x.Id)],
+                                      new Faker().Date.Future());
         vehicles.RemoveAt(0);
         vehicles.RemoveAt(1);      
 
-        _mockVehiclesService.GetAvailableVehicles().Returns(new VehiclesView(vehicles));
+        _mockVehiclesService.GetAvailableVehicles().Returns(new VehiclesView(vehicles));       
 
         // Act & Assert
-        _auctionsService.Invoking(x => x.StartAuction(command))
+        _auctionsHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("One or more vehicles are not available to be auctioned.");
     }
@@ -114,21 +117,21 @@ public class AuctionsTests
         // Arrange            
         StartAuction command = GenerateStartAuctionCommand(10,
                                                            VehicleStatuses.Available,
-                                                           new Faker().Date.Future());
+                                                           new Faker().Date.Future());       
         // Act
-        var startedAuction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);       
+
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();        
         var vehicle = startedAuction.Vehicles.First();
 
-        startedAuction = _auctionsService.PlaceBid(new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = vehicle.Id,
-            Amount = vehicle.StartingBid + 1
-        });
+        _auctionsHandler.Handle(new PlaceBid(startedAuction.Id,
+                                             vehicle.Id,
+                                             vehicle.StartingBid + 1));       
+
+        startedAuction = _auctionsService.GetAuctionById(startedAuction.Id);
 
         //Assert
-        _mockVehiclesService.Received().GetAvailableVehicles();
-        _mockVehiclesService.Received().UpdateInventoryByAuction(startedAuction.Id);
+        _mockVehiclesService.Received().GetAvailableVehicles();     
 
         startedAuction.Vehicles.First().Bids.Should().HaveCount(1);
         startedAuction.Vehicles.First().Bids.First().Amount.Should().Be(vehicle.StartingBid + 1);
@@ -141,18 +144,15 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            new Faker().Date.Future());
         // Act
-        var startedAuction = _auctionsService.StartAuction(command);
-        var vehicle = startedAuction.Vehicles.First();
+        _auctionsHandler.Handle(command);      
 
-        var bidCommand = new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = vehicle.Id,
-            Amount = -1
-        };
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
+        var vehicle = startedAuction.Vehicles.Last();
+
+        var bidCommand = new PlaceBid(startedAuction.Id, vehicle.Id, -1);        
         
         // Assert
-        _auctionsService.Invoking(x => x.PlaceBid(bidCommand))
+        _auctionsHandler.Invoking(x => _auctionsHandler.Handle(bidCommand))
                         .Should().Throw<AuctionsException>()
                         .WithMessage($"Bid amount ({bidCommand.Amount}) cannot be negative.");
     }
@@ -164,18 +164,16 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            new Faker().Date.Future());
         // Act
-        var startedAuction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);      
+
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
         var vehicle = startedAuction.Vehicles.First();
 
-        var bidCommand = new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = vehicle.Id,
-            Amount = vehicle.StartingBid - 1
-        };
-
+        var bidCommand = new PlaceBid(startedAuction.Id, 
+                                      vehicle.Id, 
+                                      vehicle.StartingBid - 1);
         // Assert
-        _auctionsService.Invoking(x => x.PlaceBid(bidCommand))
+        _auctionsHandler.Invoking(x => x.Handle(bidCommand))
                         .Should().Throw<AuctionsException>()
                         .WithMessage($"Bid amount ({bidCommand.Amount}) must be greater than the vehicle starting bid ({vehicle.StartingBid}).");
     }
@@ -187,27 +185,22 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            new Faker().Date.Future());
         // Act
-        var startedAuction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);       
+
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
         var vehicle = startedAuction.Vehicles.First();
 
-        var bid1 = new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = vehicle.Id,
-            Amount = 999999999
-        };
+        var bid1 = new PlaceBid(startedAuction.Id, 
+                                vehicle.Id, 
+                                999999999);
 
-        startedAuction = _auctionsService.PlaceBid(bid1);
+        _auctionsHandler.Handle(bid1);
 
-        var bid2 = new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = vehicle.Id,
-            Amount = 2
-        };
-
+        var bid2 = new PlaceBid(startedAuction.Id,
+                                vehicle.Id,
+                                2);
         // Assert
-        _auctionsService.Invoking(x => x.PlaceBid(bid2))
+        _auctionsHandler.Invoking(x => _auctionsHandler.Handle(bid2))
                         .Should().Throw<AuctionsException>()
                         .WithMessage($"Bid amount ({bid2.Amount}) must be greater than the current highest bid ({bid1.Amount}).");
     }
@@ -215,19 +208,15 @@ public class AuctionsTests
     public void PlaceBid_ShouldThrowException_WhenAuctionDoesNotExists()
     {
         // Arrange
-        var vehicle = _vehiclesFaker.Generate();
+        var vehicle = _vehiclesFaker.Generate();        
 
-        var command = new PlaceBid
-        {
-            AuctionId = 9999,
-            VehicleId = vehicle.Id,
-            Amount = vehicle.StartingBid + 1
-        };
-
+        var bidCommand = new PlaceBid(9999,
+                                      vehicle.Id,
+                                      999999999);
         // Act & Assert
-        _auctionsService.Invoking(x => x.PlaceBid(command))
+        _auctionsHandler.Invoking(x => x.Handle(bidCommand))
                         .Should().Throw<AuctionsException>()
-                        .WithMessage($"Auction {command.AuctionId} was not found.");
+                        .WithMessage($"Auction {bidCommand.AuctionId} was not found.");      
     }
     [Fact]
     public void PlaceBid_ShouldThrowException_WhenAuctionIsNotOpenForBids()
@@ -236,28 +225,24 @@ public class AuctionsTests
         StartAuction command = GenerateStartAuctionCommand(10,
                                                            VehicleStatuses.Available,
                                                            DateTime.UtcNow.AddSeconds(1));
-
         // Act
-        var startedAuction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);        
 
         Thread.Sleep(2000);
 
-        _auctionsService.EndAuction(startedAuction.Id);
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
 
-        var vehicle = startedAuction.Vehicles.First();
+        _auctionsHandler.Handle(new EndAuction(startedAuction.Id));  
 
-        var bidCommand = new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = vehicle.Id,
-            Amount = vehicle.StartingBid + 1
-        };
+        var vehicle = startedAuction.Vehicles.First();      
 
-        // Act
+        var bid = new PlaceBid(startedAuction.Id,
+                               vehicle.Id,
+                               vehicle.StartingBid + 1);  
+        //Assert
         _mockVehiclesService.Received().GetAvailableVehicles();
-        _mockVehiclesService.Received(2).UpdateInventoryByAuction(startedAuction.Id);
 
-        _auctionsService.Invoking(x => x.PlaceBid(bidCommand))
+        _auctionsHandler.Invoking(x => _auctionsHandler.Handle(bid))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("Auction is not open for bids.");
     }
@@ -269,23 +254,21 @@ public class AuctionsTests
                                                                   VehicleStatuses.Available,
                                                                   DateTime.UtcNow.AddSeconds(1));
         // Act
-        var startedAuction = _auctionsService.StartAuction(auctionCommand);
+        _auctionsHandler.Handle(auctionCommand);
 
         Thread.Sleep(2000);
 
-        _auctionsService.EndAuction(startedAuction.Id);
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
+
+        _auctionsHandler.Handle(new EndAuction(startedAuction.Id));       
 
         var vehicle = startedAuction.Vehicles.First();
-
-        var command = new PlaceBid
-        {
-            AuctionId = startedAuction.Id,
-            VehicleId = 9999,
-            Amount = 9999
-        };
-
+       
+        var bidCommand = new PlaceBid(startedAuction.Id,
+                                      9999,
+                                      9999);
         // Act
-        _auctionsService.Invoking(x => x.PlaceBid(command))
+        _auctionsHandler.Invoking(x => x.Handle(bidCommand))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("Vehicle not found.");
     }    
@@ -297,23 +280,28 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            DateTime.UtcNow.AddSeconds(1));
         // Act
-        var auction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);
 
         Thread.Sleep(2000);
 
-        auction = _auctionsService.EndAuction(auction.Id);
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
 
-        //Assert
-        _mockVehiclesService.Received().UpdateInventoryByAuction(auction.Id);  
+        _auctionsHandler.Handle(new EndAuction(startedAuction.Id));        
 
-        auction.Should().NotBeNull();
-        auction.Status.Should().Be(AuctionStatuses.Closed);              
+        startedAuction = _auctionsService.GetAuctionById(startedAuction.Id);
+
+        //Assert       
+        startedAuction.Should().NotBeNull();
+        startedAuction.Status.Should().Be(AuctionStatuses.Closed);              
     }
     [Fact]
     public void EndAuction_ShouldThrowException_WhenAuctionDoesNotExists()
-    {            
+    {
+        //Arrange
+        var command = new EndAuction(1);
+
         //Assert
-        _auctionsService.Invoking(x => x.EndAuction(1))
+        _auctionsHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<AuctionsException>()
                         .WithMessage($"Auction {1} was not found.");
     }
@@ -325,13 +313,16 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            new Faker().Date.Future());
         // Act
-        var auction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);
+
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
+
+        var endCommand = new EndAuction(startedAuction.Id);
 
         //Assert
-        _mockVehiclesService.Received().GetAvailableVehicles();
-        _mockVehiclesService.Received().UpdateInventoryByAuction(auction.Id);
+        _mockVehiclesService.Received().GetAvailableVehicles();      
 
-        _auctionsService.Invoking(x => x.EndAuction(auction.Id))
+        _auctionsHandler.Invoking(x => x.Handle(endCommand))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("Cannot close the auction before the end date.");   
     }
@@ -343,17 +334,20 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            DateTime.UtcNow.AddSeconds(1));
         // Act
-        var auction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);
+      
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();   
 
         Thread.Sleep(2000);      
 
-        auction = _auctionsService.EndAuction(auction.Id);
+        var endCommand = new EndAuction(startedAuction.Id);
+
+        _auctionsHandler.Handle(endCommand);
 
         //Assert
-        _mockVehiclesService.Received().GetAvailableVehicles();
-        _mockVehiclesService.Received().UpdateInventoryByAuction(auction.Id);
+        _mockVehiclesService.Received().GetAvailableVehicles();       
 
-        _auctionsService.Invoking(x => x.EndAuction(auction.Id))
+        _auctionsHandler.Invoking(x => x.Handle(endCommand))
                         .Should().Throw<AuctionsException>()
                         .WithMessage("Auction was already closed.");
     }
@@ -365,12 +359,13 @@ public class AuctionsTests
                                                            VehicleStatuses.Available,
                                                            DateTime.UtcNow.AddSeconds(1));
         // Act
-        var startedAuction = _auctionsService.StartAuction(command);
+        _auctionsHandler.Handle(command);
+
+        var startedAuction = _auctionsService.GetAuctions().Auctions.First();
         var retrievedAuction = _auctionsService.GetAuctionById(startedAuction.Id);
 
         //Assert
-        _mockVehiclesService.Received().GetAvailableVehicles();
-        _mockVehiclesService.Received().UpdateInventoryByAuction(retrievedAuction.Id);
+        _mockVehiclesService.Received().GetAvailableVehicles();        
 
         retrievedAuction.Should()
                         .NotBeNull()
@@ -380,8 +375,8 @@ public class AuctionsTests
     public void GetAuctionById_ShouldThrowException_WhenAuctionIsNotFound()
     {
         _auctionsService.Invoking(x => x.GetAuctionById(99999))
-                       .Should().Throw<AuctionsException>()
-                       .WithMessage("Auction with id 99999 not found.");
+                        .Should().Throw<AuctionsException>()
+                        .WithMessage("Auction with id 99999 not found.");
 
     }
 }

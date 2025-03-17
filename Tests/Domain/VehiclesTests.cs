@@ -1,5 +1,6 @@
 ﻿using Bogus;
 using Domain.Shared;
+using Domain.Vehicles;
 using FluentAssertions;
 using NSubstitute;
 
@@ -7,25 +8,17 @@ namespace Tests.Domain;
 
 public class VehiclesTests
 {
-    private readonly IAuctionsService _mockAuctionsService;
-    private readonly IVehiclesService _vehiclesService;
-    private readonly Faker<AddVehicle> _addVehicleFaker;   
+    private readonly VehiclesService _vehiclesService;    
+    private readonly IVehiclesHandler _vehiclesHandler;  
+
+    private readonly IAuctionsService _mockAuctionsService;    
     private readonly Faker<AuctionInfo> _auctionFaker;
 
     public VehiclesTests()
     {
         _mockAuctionsService = Substitute.For<IAuctionsService>();
-        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService(_mockAuctionsService);       
-
-        _addVehicleFaker = new Faker<AddVehicle>()
-            .RuleFor(x => x.Type, f => f.PickRandom<VehicleTypes>())
-            .RuleFor(x => x.Manufacturer, f => f.Vehicle.Manufacturer())
-            .RuleFor(x => x.Model, f => f.Vehicle.Model())
-            .RuleFor(x => x.Year, f => f.Random.Number(1990,2025))
-            .RuleFor(x => x.StartingBid, f => f.Random.Decimal(10000))
-            .RuleFor(x => x.NumberOfDoors, f => f.Random.Number(2,5))
-            .RuleFor(x => x.NumberOfSeats, f => f.Random.Number(1,7))
-            .RuleFor(x => x.LoadCapacity, f => f.Random.Double(500,1500));
+        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService(_mockAuctionsService);
+        _vehiclesHandler = VehiclesServiceFactory.CreateVehiclesHandler(_vehiclesService);
 
         var _bidFaker = new Faker<BidInfo>()
             .RuleFor(x => x.Amount, f => f.Random.Decimal(1, 100000))
@@ -50,10 +43,37 @@ public class VehiclesTests
             .RuleFor(x => x.Status, f => f.PickRandom<AuctionStatuses>());
     }
 
+    private AddVehicle GenerateAddVehicleCommand(VehicleTypes? type = null, 
+                                                 string? manufacturer = null,
+                                                 string? model = null,
+                                                 int? year = null,
+                                                 decimal? startingBid = null,
+                                                 int? numberOfDoors = null, 
+                                                 int? numberOfSeats = null, 
+                                                 double? loadCapacity = null)
+    {
+        var faker = new Faker();    
+        
+        return  new(type ?? faker.PickRandom<VehicleTypes>(),
+                    manufacturer ?? faker.Vehicle.Manufacturer(),
+                    model ?? faker.Vehicle.Model(),
+                    year ?? faker.Random.Number(1990, 2025),
+                    startingBid ?? faker.Random.Decimal(10000),
+                    numberOfDoors,
+                    numberOfSeats,
+                    loadCapacity);        
+    }
+
     private AuctionInfo GenerateOpenAuction(VehicleStatuses statusForVehicles)
     {
-        var commands = _addVehicleFaker.Generate(10);
-        commands.ForEach(c => _vehiclesService.AddVehicle(c));
+        var faker = new Faker();
+
+        var commands = new List<AddVehicle>();
+
+        for (int i = 1; i <= 10; i++)
+            commands.Add(GenerateAddVehicleCommand());
+
+        commands.ForEach(command => _vehiclesHandler.Handle(command));
 
         var addedVehicles = _vehiclesService.GetAvailableVehicles();
         var addedVehicleIds = addedVehicles.Vehicles.Select(x => x.Id).ToList();
@@ -75,11 +95,14 @@ public class VehiclesTests
     public void Vehicle_ShouldHaveBasicProperties()
     {
         // Arrange       
-        var command = _addVehicleFaker.Generate();        
+        var command = GenerateAddVehicleCommand();
 
         // Act
-        var vhc = _vehiclesService.AddVehicle(command);
+        _vehiclesHandler.Handle(command);       
 
+        var vhc = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+
+        // Assert
         vhc.Should().NotBeNull();
         vhc.Id.Should().Be(vhc.Id);
         vhc.Type.Should().Be(command.Type);
@@ -93,14 +116,14 @@ public class VehiclesTests
     public void Vehicle_ShouldBehaveAsHatchback()
     {
         // Arrange       
-        var command = _addVehicleFaker.Generate();
-
-        command.Type = VehicleTypes.Hatchback;
-        command.NumberOfDoors = new Faker().Random.Number(2, 5);     
-
+        var command = GenerateAddVehicleCommand(VehicleTypes.Hatchback, 
+                                                numberOfDoors: new Faker().Random.Number(2, 5));
         // Act
-        var hatch = _vehiclesService.AddVehicle(command);
+        _vehiclesHandler.Handle(command);
 
+        var hatch = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+
+        // Assert
         hatch.Should().NotBeNull();
         hatch.Type.Should().Be(VehicleTypes.Hatchback);
         hatch.NumberOfDoors.Should().Be(command.NumberOfDoors);
@@ -111,14 +134,14 @@ public class VehiclesTests
     public void Vehicle_ShouldBehaveAsSedan()
     {
         // Arrange      
-        var command = _addVehicleFaker.Generate();       
+        var command = GenerateAddVehicleCommand(VehicleTypes.Sedan,
+                                                numberOfDoors: new Faker().Random.Number(2, 5));
+        // Act
+        _vehiclesHandler.Handle(command);
 
-        command.Type = VehicleTypes.Sedan;
-        command.NumberOfDoors = new Faker().Random.Number(2, 5);      
+        var sedan = _vehiclesService.GetAvailableVehicles().Vehicles.First();
 
-        // Act     
-        var sedan = _vehiclesService.AddVehicle(command);
-
+        // Assert
         sedan.Should().NotBeNull();
         sedan.Type.Should().Be(VehicleTypes.Sedan);
         sedan.NumberOfDoors.Should().Be(command.NumberOfDoors);
@@ -129,14 +152,14 @@ public class VehiclesTests
     public void Vehicle_ShouldBehaveAsSUV()
     {
         // Arrange       
-        var command = _addVehicleFaker.Generate();   
+        var command = GenerateAddVehicleCommand(VehicleTypes.SUV,
+                                                numberOfSeats: new Faker().Random.Number(1, 7));
+        // Act
+        _vehiclesHandler.Handle(command);
 
-        command.Type = VehicleTypes.SUV;
-        command.NumberOfSeats = new Faker().Random.Number(1, 7);        
+        var suv = _vehiclesService.GetAvailableVehicles().Vehicles.First();
 
-        // Act      
-        var suv = _vehiclesService.AddVehicle(command);
-
+        //Assert
         suv.Should().NotBeNull();
         suv.Type.Should().Be(VehicleTypes.SUV);
         suv.NumberOfSeats.Should().Be(command.NumberOfSeats);
@@ -147,14 +170,14 @@ public class VehiclesTests
     public void Vehicle_ShouldBehaveAsTruck()
     {
         // Arrange      
-        var command = _addVehicleFaker.Generate();        
-
-        command.Type = VehicleTypes.Truck;
-        command.LoadCapacity = new Faker().Random.Double(500,1500);
-
+        var command = GenerateAddVehicleCommand(VehicleTypes.Truck,
+                                                loadCapacity: new Faker().Random.Double(500, 1500));
         // Act 
-        var truck = _vehiclesService.AddVehicle(command);
+        _vehiclesHandler.Handle(command);
 
+        var truck = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+
+        // Assert
         truck.Should().NotBeNull();
         truck.Type.Should().Be(VehicleTypes.Truck);
         truck.LoadCapacity.Should().Be(command.LoadCapacity);
@@ -165,11 +188,13 @@ public class VehiclesTests
     public void AddVehicle_ShouldIncrementInventory()
     {
         // Arrange
-        var command = _addVehicleFaker.Generate();
+        var command = GenerateAddVehicleCommand();
 
         // Act
-        var vehicle = _vehiclesService.AddVehicle(command);
-        
+        _vehiclesHandler.Handle(command);
+
+        var vehicle = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+
         vehicle.Should()
                .NotBeNull()
                .And.BeEquivalentTo(_vehiclesService.GetVehicleById(vehicle.Id));     
@@ -177,41 +202,37 @@ public class VehiclesTests
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenAnyBasicInfoIsBad()
     {
-        // Arrange       
-        var commands = _addVehicleFaker.Generate(4);
-
-        commands[0].Manufacturer = string.Empty;
-        commands[1].Model = string.Empty;
-        commands[2].Year = 0;
-        commands[3].StartingBid = 0;     
+        // Arrange             
+        var command1 = GenerateAddVehicleCommand(manufacturer: string.Empty);
+        var command2 = GenerateAddVehicleCommand(model: string.Empty);
+        var command3 = GenerateAddVehicleCommand(year: 0);
+        var command4 = GenerateAddVehicleCommand(startingBid: 0);     
 
         // Act & Assert
-        _vehiclesService.Invoking(x => x.AddVehicle(commands[0]))
+        _vehiclesHandler.Invoking(x => x.Handle(command1))
                         .Should().Throw<VehiclesException>()
                         .WithMessage("Manufacturer is required.");
 
-        _vehiclesService.Invoking(x => x.AddVehicle(commands[1]))
+        _vehiclesHandler.Invoking(x => x.Handle(command2))
                         .Should().Throw<VehiclesException>()
                         .WithMessage("Model is required.");
 
-        _vehiclesService.Invoking(x => x.AddVehicle(commands[2]))
+        _vehiclesHandler.Invoking(x => x.Handle(command3))
                         .Should().Throw<VehiclesException>()
                         .WithMessage("Year is required.");
 
-        _vehiclesService.Invoking(x => x.AddVehicle(commands[3]))
+        _vehiclesHandler.Invoking(x => x.Handle(command4))
                         .Should().Throw<VehiclesException>()
-                        .WithMessage("StartingBid is required.");
+                        .WithMessage("StartingBid is required.");       
     }
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenVehicleTypeIsBad()
     {
         // Arrange
-        var command = _addVehicleFaker.Generate();        
+        var command = GenerateAddVehicleCommand((VehicleTypes)99);
 
-        command.Type = (VehicleTypes)99;     
-
-        // Act & Assert
-        _vehiclesService.Invoking(x => x.AddVehicle(command))
+        // Act
+        _vehiclesHandler.Invoking(x => x.Handle(command))      
                         .Should().Throw<VehiclesException>()
                         .WithMessage("Invalid vehicle type.");
     }
@@ -219,34 +240,28 @@ public class VehiclesTests
     public void AddVehicle_ShouldThrowException_WhenNumberOfDoorsIsBad()
     {
         // Arrange
-        var commands = _addVehicleFaker.Generate(3);
+        var command1 = GenerateAddVehicleCommand(VehicleTypes.Hatchback,
+                                                numberOfDoors: -1);
 
-        commands[0].Type = VehicleTypes.Hatchback;
-        commands[0].NumberOfDoors = -1;
-
-        commands[1].Type = VehicleTypes.Sedan;
-        commands[1].NumberOfDoors = 0;      
-
+        var command2 = GenerateAddVehicleCommand(VehicleTypes.Sedan,
+                                                numberOfDoors: 0);
         // Act & Assert        
-        _vehiclesService.Invoking(x => x.AddVehicle(commands[0]))
+        _vehiclesHandler.Invoking(x => x.Handle(command1))
                         .Should().Throw<VehiclesException>()
-                        .WithMessage($"Door count is ({commands[0].NumberOfDoors}) and should be between 2 and 5.");
+                        .WithMessage($"Door count is ({command1.NumberOfDoors}) and should be between 2 and 5.");
 
-        _vehiclesService.Invoking(x => x.AddVehicle(commands[1]))
+        _vehiclesHandler.Invoking(x => x.Handle(command2))
                         .Should().Throw<VehiclesException>()
-                        .WithMessage($"Door count is ({commands[1].NumberOfDoors}) and should be between 2 and 5.");       
+                        .WithMessage($"Door count is ({command2.NumberOfDoors}) and should be between 2 and 5.");       
     }
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenNumberOfSeatsIsBad()
     {
         // Arrange
-        var command = _addVehicleFaker.Generate();
-
-        command.Type = VehicleTypes.SUV;
-        command.NumberOfSeats = 0;
+        var command = GenerateAddVehicleCommand(VehicleTypes.SUV, numberOfSeats: 0);
         
         // Act & Assert
-        _vehiclesService.Invoking(x => x.AddVehicle(command))
+        _vehiclesHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"Seat count is ({command.NumberOfSeats}) and must be at least 1.");       
     }
@@ -254,13 +269,10 @@ public class VehiclesTests
     public void AddVehicle_ShouldThrowException_WhenLoadCapacityIsBad()
     {
         // Arrange
-        var command = _addVehicleFaker.Generate();
-
-        command.Type = VehicleTypes.Truck;
-        command.LoadCapacity = -1;
+        var command = GenerateAddVehicleCommand(VehicleTypes.Truck, loadCapacity: -1);       
 
         // Act & Assert
-        _vehiclesService.Invoking(x => x.AddVehicle(command))
+        _vehiclesHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"Capacity cannot be negative ({command.LoadCapacity}).");      
     }   
@@ -268,16 +280,23 @@ public class VehiclesTests
     public void SearchVehicles_ShouldReturnOnlyOneMatchingVehicle()
     {
         // Arrange
-        var command = _addVehicleFaker.Generate();     
+        var command1 = GenerateAddVehicleCommand();   
+        var command2 = GenerateAddVehicleCommand();
 
-        var vhc = _vehiclesService.AddVehicle(command);
+        _vehiclesHandler.Handle(command1);
+        _vehiclesHandler.Handle(command2);
+        
+        var result = _vehiclesService.GetAvailableVehicles();
+
+        var vhc1 = result.Vehicles.First();
+        var vhc2 = result.Vehicles.Last();
 
         var search = new Dictionary<VehicleSearchFields, dynamic>()
         {
-            { VehicleSearchFields.Type, vhc.Type },
-            { VehicleSearchFields.Manufacturer, vhc.Manufacturer },
-            { VehicleSearchFields.Model, vhc.Model },
-            { VehicleSearchFields.Year, vhc.Year }
+            { VehicleSearchFields.Type, vhc1.Type },
+            { VehicleSearchFields.Manufacturer, vhc1.Manufacturer },
+            { VehicleSearchFields.Model, vhc1.Model },
+            { VehicleSearchFields.Year, vhc1.Year }
         };
 
         // Act & Assert
@@ -288,15 +307,15 @@ public class VehiclesTests
                .And.BeOfType<VehiclesView>();
 
         results.Vehicles.Should()
-                        .OnlyContain(x => x.Id == vhc.Id);
+                        .OnlyContain(x => x.Id == vhc1.Id);
     }
     [Fact]
     public void SearchVehicles_ShouldReturnVehiclesFilteredByType()
     {
         // Arrange
-        _addVehicleFaker.Generate(100)
-                        .ForEach(c => _vehiclesService.AddVehicle(c));  
-
+        for (int i = 1; i <= 100; i++)
+            _vehiclesHandler.Handle(GenerateAddVehicleCommand());
+       
         var type = new Faker().PickRandom<VehicleTypes>();
 
         var search = new Dictionary<VehicleSearchFields, dynamic>()
@@ -304,9 +323,10 @@ public class VehiclesTests
             { VehicleSearchFields.Type, type },          
         };
 
-        // Act & Assert
+        // Act
         var results = _vehiclesService.SearchVehicles(search);
 
+        // Assert
         results.Should()
                .NotBeNull()
                .And.BeOfType<VehiclesView>();
@@ -319,13 +339,16 @@ public class VehiclesTests
     [Fact]
     public void SearchVehicles_ShouldReturnVehiclesFilteredByManufacturerOrModel()
     {
-        // Arrange   
-        _addVehicleFaker.Generate(100)
-                        .ForEach(c => _vehiclesService.AddVehicle(c));
-
+        // Arrange      
         var vhc = new Faker().Vehicle;
         var manufacturer = vhc.Manufacturer();
         var model = vhc.Model();
+
+        for (int i = 1; i <= 2; i++)
+            _vehiclesHandler.Handle(GenerateAddVehicleCommand(manufacturer: manufacturer, model: model));
+
+        for (int i = 1; i <= 100; i++)
+            _vehiclesHandler.Handle(GenerateAddVehicleCommand());
 
         var search = new Dictionary<VehicleSearchFields, dynamic>()
         {
@@ -333,23 +356,24 @@ public class VehiclesTests
             { VehicleSearchFields.Model, model },
         };
 
-        // Act & Assert
+        // Act
         var results = _vehiclesService.SearchVehicles(search);
 
+        // Assert
         results.Should()
                .NotBeNull()
                .And.BeOfType<VehiclesView>();
 
         results.Vehicles.Should()
                         .NotBeNullOrEmpty()
-                        .And.OnlyContain(x => x.Manufacturer == manufacturer || x.Model == model);                      
+                        .And.OnlyContain(x => x.Manufacturer == manufacturer && x.Model == model);                      
     }
     [Fact]
     public void SearchVehicles_ShouldReturnVehiclesFilteredByYear()
     {
         // Arrange
-        _addVehicleFaker.Generate(1000)
-                        .ForEach(c => _vehiclesService.AddVehicle(c));
+        for (int i = 1; i <= 100; i++)
+            _vehiclesHandler.Handle(GenerateAddVehicleCommand());
 
         var year = new Faker().Random.Number(1990, 2025);
 
@@ -373,14 +397,9 @@ public class VehiclesTests
     public void SearchVehicles_ShouldNotReturnVehicles()
     {
         // Arrange
-        _addVehicleFaker.Generate(100)
-                        .ForEach(c => 
-                        {
-                            c.Type = VehicleTypes.SUV;
-                            c.NumberOfSeats = 1;
+        var command = GenerateAddVehicleCommand(VehicleTypes.SUV, numberOfSeats: 4);
 
-                            _vehiclesService.AddVehicle(c); 
-                        });          
+        _vehiclesHandler.Handle(command);        
 
         var search = new Dictionary<VehicleSearchFields, dynamic>()
         {
@@ -414,8 +433,11 @@ public class VehiclesTests
         var auction = GenerateOpenAuction(new Faker().PickRandom<VehicleStatuses>());
 
         _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
+
+        var command = new UpdateVehiclesByAuction(auction.Id);
+
         //Act
-        _vehiclesService.UpdateInventoryByAuction(auction.Id);
+        _vehiclesHandler.Handle(command);
 
         //Assert
         _mockAuctionsService.Received().GetAuctionById(auction.Id);
@@ -431,12 +453,16 @@ public class VehiclesTests
     [Fact]
     public void UpdateInventoryByAuction_ShouldThrowException_WhenAuctionIsClosed()
     {
+        // Arrange
         var auction = _auctionFaker.Generate();
         auction.Status = AuctionStatuses.Closed;
 
-        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);      
+        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
 
-        _vehiclesService.Invoking(x => x.UpdateInventoryByAuction(auction.Id))
+        var command = new UpdateVehiclesByAuction(auction.Id);
+
+        // Act & Assert
+        _vehiclesHandler.Invoking(x => x.Handle(command))
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"Cannot update because the auction ({auction.Id}) is closed.");
     }    
@@ -444,8 +470,8 @@ public class VehiclesTests
     public void GetAvailableVehicles_ShouldReturnOnlyAvailableVehicles()
     {
         //Arrange
-        var commands = _addVehicleFaker.Generate(10);
-        commands.ForEach(c => _vehiclesService.AddVehicle(c));
+        for (int i = 1; i <= 10; i++)
+            _vehiclesHandler.Handle(GenerateAddVehicleCommand());
 
         //Act
         var availableVehicles = _vehiclesService.GetAvailableVehicles();
@@ -463,8 +489,11 @@ public class VehiclesTests
         var auction = GenerateOpenAuction(VehicleStatuses.Sold);
 
         _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
+
         //Act
-        _vehiclesService.UpdateInventoryByAuction(auction.Id);
+        var command = new UpdateVehiclesByAuction(auction.Id);
+
+        _vehiclesHandler.Handle(command); 
 
         var availableVehicles = _vehiclesService.GetAvailableVehicles();
 
@@ -477,10 +506,15 @@ public class VehiclesTests
     [Fact]
     public void GetVehicleById_ShouldReturnVehicleInfo()
     {
-        var command = _addVehicleFaker.Generate();
-        var addedVehicle = _vehiclesService.AddVehicle(command);
+        // Arrange & Act
+        var command = GenerateAddVehicleCommand();        
+
+        _vehiclesHandler.Handle(GenerateAddVehicleCommand());
+
+        var addedVehicle = _vehiclesService.GetAvailableVehicles().Vehicles.First();
         var returedVehicle = _vehiclesService.GetVehicleById(addedVehicle.Id);
 
+        // Assert
         returedVehicle.Should()
                       .NotBeNull()
                       .And.BeEquivalentTo(addedVehicle);

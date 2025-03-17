@@ -1,7 +1,7 @@
 ﻿namespace Domain.Shared;
 
-public class UpdateVehiclesByAuction(long auctionId) : Command
-{
+public class EndAuction(long auctionId) : Command
+{   
     public long AuctionId { get; } = auctionId;
 
     public override bool IsValid()
