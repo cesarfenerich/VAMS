@@ -1,21 +1,21 @@
 ﻿using Bogus;
 using Domain.Shared;
 using FluentAssertions;
-using Moq;
+using NSubstitute;
 
 namespace Tests.Domain;
 
 public class VehiclesTests
 {
-    private readonly Mock<IAuctionsService> _mockAuctionsService;
+    private readonly IAuctionsService _mockAuctionsService;
     private readonly IVehiclesService _vehiclesService;
     private readonly Faker<AddVehicle> _addVehicleFaker;   
     private readonly Faker<AuctionInfo> _auctionFaker;
 
     public VehiclesTests()
     {
-        _mockAuctionsService = new Mock<IAuctionsService>();
-        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService(_mockAuctionsService.Object);       
+        _mockAuctionsService = Substitute.For<IAuctionsService>();
+        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService(_mockAuctionsService);       
 
         _addVehicleFaker = new Faker<AddVehicle>()
             .RuleFor(x => x.Type, f => f.PickRandom<VehicleTypes>())
@@ -413,13 +413,12 @@ public class VehiclesTests
         //Arrange    
         var auction = GenerateOpenAuction(new Faker().PickRandom<VehicleStatuses>());
 
-        _mockAuctionsService.Setup(x => x.GetAuctionById(auction.Id))
-                            .Returns(auction);
+        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
         //Act
         _vehiclesService.UpdateInventoryByAuction(auction.Id);
 
         //Assert
-        _mockAuctionsService.Verify(x => x.GetAuctionById(auction.Id), Times.Once);       
+        _mockAuctionsService.Received().GetAuctionById(auction.Id);
 
         foreach (var vhc in auction.Vehicles)
         {
@@ -435,12 +434,11 @@ public class VehiclesTests
         var auction = _auctionFaker.Generate();
         auction.Status = AuctionStatuses.Closed;
 
-        _mockAuctionsService.Setup(x => x.GetAuctionById(auction.Id))
-                            .Returns(auction);      
+        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);      
 
         _vehiclesService.Invoking(x => x.UpdateInventoryByAuction(auction.Id))
-                            .Should().Throw<VehiclesException>()
-                            .WithMessage($"Cannot update because the auction ({auction.Id}) is closed.");
+                        .Should().Throw<VehiclesException>()
+                        .WithMessage($"Cannot update because the auction ({auction.Id}) is closed.");
     }    
     [Fact]
     public void GetAvailableVehicles_ShouldReturnOnlyAvailableVehicles()
@@ -464,14 +462,14 @@ public class VehiclesTests
         //Arrange
         var auction = GenerateOpenAuction(VehicleStatuses.Sold);
 
-        _mockAuctionsService.Setup(x => x.GetAuctionById(auction.Id))
-                            .Returns(auction);
+        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
         //Act
         _vehiclesService.UpdateInventoryByAuction(auction.Id);
 
         var availableVehicles = _vehiclesService.GetAvailableVehicles();
 
         //Assert
+        _mockAuctionsService.Received().GetAuctionById(auction.Id);
         availableVehicles.Should().NotBeNull();
         availableVehicles.Vehicles.Should().NotBeNull();
         availableVehicles.Vehicles.Should().HaveCount(0);
