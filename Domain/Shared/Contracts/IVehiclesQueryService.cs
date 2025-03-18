@@ -1,6 +1,6 @@
 ﻿namespace Domain.Shared;
 
-public interface IVehiclesService
+public interface IVehiclesQueryService
 {   
     VehiclesView GetAvailableVehicles();
     VehicleInfo GetVehicleById(long id);

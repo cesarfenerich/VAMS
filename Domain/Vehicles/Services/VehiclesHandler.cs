@@ -2,9 +2,9 @@
 
 namespace Domain.Vehicles;
 
-internal class VehiclesHandler(VehiclesService vehiclesService) : IVehiclesHandler
+internal class VehiclesHandler(IVehiclesCommandService vehiclesCommandService) : IVehiclesHandler
 {
-    private readonly VehiclesService _vehiclesService = vehiclesService;
+    private readonly IVehiclesCommandService _vehiclesService = vehiclesCommandService;
 
     public void Handle(AddVehicle command)
     {

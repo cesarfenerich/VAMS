@@ -1,6 +1,6 @@
 ﻿namespace Domain.Shared;
 
-public interface IAuctionsService
+public interface IAuctionsQueryService
 {       
     AuctionInfo GetAuctionById(long id);
     AuctionsView GetAuctions();

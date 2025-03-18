@@ -5,9 +5,9 @@ public class AddVehicle(VehicleTypes type,
                         string model,
                         int year,
                         decimal startingBid,
-                        int? numberOfDoors,
-                        int? numberOfSeats,
-                        double? loadCapacity) : Command
+                        int? numberOfDoors = null,
+                        int? numberOfSeats = null,
+                        double? loadCapacity = null) : Command
 {      
     public VehicleTypes Type { get; } = type;
     public string Manufacturer { get; } = manufacturer;

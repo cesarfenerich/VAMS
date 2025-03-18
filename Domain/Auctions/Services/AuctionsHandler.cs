@@ -2,9 +2,9 @@
 
 namespace Domain.Auctions;
 
-internal class AuctionsHandler(AuctionsService auctionsService) : IAuctionsHandler
+internal class AuctionsHandler(IAuctionsCommandService auctionsService) : IAuctionsHandler
 {
-    private readonly AuctionsService _auctionsService = auctionsService;
+    private readonly IAuctionsCommandService _auctionsService = auctionsService;
 
     public void Handle(StartAuction command)
     {

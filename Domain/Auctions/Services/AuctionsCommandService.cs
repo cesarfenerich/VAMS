@@ -2,46 +2,45 @@
 
 namespace Domain.Auctions;
 
-public class AuctionsService(IVehiclesService vehiclesService, 
-                             IVehiclesHandler vehiclesHandler) : IAuctionsService
+internal class AuctionsCommandService(IAuctionsRepository auctionsRepository,
+                                      IVehiclesHandler vehiclesHandler, 
+                                      IVehiclesQueryService vehiclesService) : IAuctionsCommandService
 {
-    private readonly List<Auction> _inventory = []; //Just for brevity, this should be a repository/other data access mechanism
-    private readonly IVehiclesService _vehiclesService = vehiclesService;
+    private readonly IAuctionsRepository _auctions = auctionsRepository;
+    private readonly IVehiclesQueryService _vehiclesService = vehiclesService;
     private readonly IVehiclesHandler _vehiclesHandler = vehiclesHandler;
 
-    #region Commands
-
-    internal void StartAuction(StartAuction command)
+    public void StartAuction(StartAuction command)
     {
-        var lastId = _inventory.Count == 0 ? 0 : _inventory.Max(x => x.Id);
+        var lastId = _auctions.GetLastId();
 
         var auction = new Auction(lastId,
                                   ValidateVehiclesForAuction(command),
                                   command.EndDate);
         auction.Open();
-        _inventory.Add(auction);
+        _auctions.Add(auction);
 
         _vehiclesHandler.Handle(new UpdateVehiclesByAuction(auction.Id));
     }
 
-    internal void PlaceBid(PlaceBid command)
+    public void PlaceBid(PlaceBid command)
     {
-        var auction = _inventory.FirstOrDefault(x => x.Id == command.AuctionId) ??
+        var auction = _auctions.GetById(command.AuctionId) ??
                       throw new AuctionsException($"Auction {command.AuctionId} was not found.");
 
-        auction.PlaceBid(command.VehicleId, command.Amount);  
+        auction.PlaceBid(command.VehicleId, command.Amount);
     }
 
-    internal void EndAuction(EndAuction command)
+    public void EndAuction(EndAuction command)
     {
-        var auction = _inventory.FirstOrDefault(x => x.Id == command.AuctionId) ??
+        var auction = _auctions.GetById(command.AuctionId) ??
                       throw new AuctionsException($"Auction {command.AuctionId} was not found.");
 
-        _inventory.Remove(auction);
+        _auctions.Remove(auction);
         auction.Close();
-        _inventory.Add(auction);
+        _auctions.Add(auction);
 
-        _vehiclesHandler.Handle(new UpdateVehiclesByAuction(auction.Id));      
+        _vehiclesHandler.Handle(new UpdateVehiclesByAuction(auction.Id));
     }
 
     private List<Vehicle> ValidateVehiclesForAuction(StartAuction command)
@@ -65,21 +64,5 @@ public class AuctionsService(IVehiclesService vehiclesService,
                                                                   vhc.Year,
                                                                   vhc.StartingBid)));
         return availableVehicles;
-    }
-
-    #endregion
-
-    #region Queries
-
-    public AuctionInfo GetAuctionById(long id)
-    {
-        var auction = _inventory.FirstOrDefault(acn => acn.Id == id)?.AsModel();
-
-        return auction ?? throw new AuctionsException($"Auction with id {id} not found.");
-    }
-
-    public AuctionsView GetAuctions()
-        => new([.. _inventory.Select(x => x.AsModel())]);
-
-    #endregion
+    }   
 }

@@ -1,6 +1,7 @@
 ﻿using Domain.Shared;
 
 namespace Domain.Vehicles;
+
 internal record Vehicle
 {
     public long Id { get; }

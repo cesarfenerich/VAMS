@@ -2,7 +2,7 @@
 
 namespace Domain.Vehicles;
 
-internal readonly struct Capacity
+internal struct Capacity
 {
     public double Value { get; }
 

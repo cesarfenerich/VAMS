@@ -1,6 +1,5 @@
 ﻿using Bogus;
 using Domain.Shared;
-using Domain.Vehicles;
 using FluentAssertions;
 using NSubstitute;
 
@@ -8,17 +7,23 @@ namespace Tests.Domain;
 
 public class VehiclesTests
 {
-    private readonly VehiclesService _vehiclesService;    
-    private readonly IVehiclesHandler _vehiclesHandler;  
+    private readonly IVehiclesHandler _vehiclesHandler;
+    private readonly IVehiclesQueryService _vehiclesQueryService;  
+   
+    private readonly IAuctionsQueryService _auctionsQueryService;
 
-    private readonly IAuctionsService _mockAuctionsService;    
     private readonly Faker<AuctionInfo> _auctionFaker;
 
     public VehiclesTests()
-    {
-        _mockAuctionsService = Substitute.For<IAuctionsService>();
-        _vehiclesService = VehiclesServiceFactory.CreateVehiclesService(_mockAuctionsService);
-        _vehiclesHandler = VehiclesServiceFactory.CreateVehiclesHandler(_vehiclesService);
+    {              
+        _auctionsQueryService = Substitute.For<IAuctionsQueryService>();
+
+        var _repository = VehiclesFactory.CreateVehiclesRepository();
+
+        var _vehiclesCommandService = VehiclesFactory.CreateVehiclesCommandService(_repository, _auctionsQueryService);
+
+        _vehiclesHandler = VehiclesFactory.CreateVehiclesHandler(_vehiclesCommandService);
+        _vehiclesQueryService = VehiclesFactory.CreateVehiclesQueryService(_repository);
 
         var _bidFaker = new Faker<BidInfo>()
             .RuleFor(x => x.Amount, f => f.Random.Decimal(1, 100000))
@@ -75,7 +80,7 @@ public class VehiclesTests
 
         commands.ForEach(command => _vehiclesHandler.Handle(command));
 
-        var addedVehicles = _vehiclesService.GetAvailableVehicles();
+        var addedVehicles = _vehiclesQueryService.GetAvailableVehicles();
         var addedVehicleIds = addedVehicles.Vehicles.Select(x => x.Id).ToList();
         var auction = _auctionFaker.Generate();
 
@@ -100,7 +105,7 @@ public class VehiclesTests
         // Act
         _vehiclesHandler.Handle(command);       
 
-        var vhc = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+        var vhc = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
 
         // Assert
         vhc.Should().NotBeNull();
@@ -121,7 +126,7 @@ public class VehiclesTests
         // Act
         _vehiclesHandler.Handle(command);
 
-        var hatch = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+        var hatch = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
 
         // Assert
         hatch.Should().NotBeNull();
@@ -139,7 +144,7 @@ public class VehiclesTests
         // Act
         _vehiclesHandler.Handle(command);
 
-        var sedan = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+        var sedan = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
 
         // Assert
         sedan.Should().NotBeNull();
@@ -157,7 +162,7 @@ public class VehiclesTests
         // Act
         _vehiclesHandler.Handle(command);
 
-        var suv = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+        var suv = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
 
         //Assert
         suv.Should().NotBeNull();
@@ -175,7 +180,7 @@ public class VehiclesTests
         // Act 
         _vehiclesHandler.Handle(command);
 
-        var truck = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+        var truck = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
 
         // Assert
         truck.Should().NotBeNull();
@@ -193,11 +198,11 @@ public class VehiclesTests
         // Act
         _vehiclesHandler.Handle(command);
 
-        var vehicle = _vehiclesService.GetAvailableVehicles().Vehicles.First();
+        var vehicle = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
 
         vehicle.Should()
                .NotBeNull()
-               .And.BeEquivalentTo(_vehiclesService.GetVehicleById(vehicle.Id));     
+               .And.BeEquivalentTo(_vehiclesQueryService.GetVehicleById(vehicle.Id));     
     }
     [Fact]
     public void AddVehicle_ShouldThrowException_WhenAnyBasicInfoIsBad()
@@ -286,7 +291,7 @@ public class VehiclesTests
         _vehiclesHandler.Handle(command1);
         _vehiclesHandler.Handle(command2);
         
-        var result = _vehiclesService.GetAvailableVehicles();
+        var result = _vehiclesQueryService.GetAvailableVehicles();
 
         var vhc1 = result.Vehicles.First();
         var vhc2 = result.Vehicles.Last();
@@ -300,7 +305,7 @@ public class VehiclesTests
         };
 
         // Act & Assert
-        var results = _vehiclesService.SearchVehicles(search);
+        var results = _vehiclesQueryService.SearchVehicles(search);
 
         results.Should()
                .NotBeNull()
@@ -324,7 +329,7 @@ public class VehiclesTests
         };
 
         // Act
-        var results = _vehiclesService.SearchVehicles(search);
+        var results = _vehiclesQueryService.SearchVehicles(search);
 
         // Assert
         results.Should()
@@ -357,7 +362,7 @@ public class VehiclesTests
         };
 
         // Act
-        var results = _vehiclesService.SearchVehicles(search);
+        var results = _vehiclesQueryService.SearchVehicles(search);
 
         // Assert
         results.Should()
@@ -383,7 +388,7 @@ public class VehiclesTests
         };
 
         // Act & Assert
-        var results = _vehiclesService.SearchVehicles(search);
+        var results = _vehiclesQueryService.SearchVehicles(search);
 
         results.Should()
                .NotBeNull()
@@ -407,7 +412,7 @@ public class VehiclesTests
         };
 
         // Act & Assert
-        var results = _vehiclesService.SearchVehicles(search);
+        var results = _vehiclesQueryService.SearchVehicles(search);
 
         results.Should()
                .NotBeNull()
@@ -422,7 +427,7 @@ public class VehiclesTests
         var search = new Dictionary<VehicleSearchFields, dynamic>();
 
         // Act & Assert
-        _vehiclesService.Invoking(x => x.SearchVehicles(search))
+        _vehiclesQueryService.Invoking(x => x.SearchVehicles(search))
                         .Should().Throw<VehiclesException>()
                         .WithMessage($"At least one field is required to Search a vehicle.");
     }
@@ -432,7 +437,7 @@ public class VehiclesTests
         //Arrange    
         var auction = GenerateOpenAuction(new Faker().PickRandom<VehicleStatuses>());
 
-        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
+        _auctionsQueryService.GetAuctionById(auction.Id).Returns(auction);
 
         var command = new UpdateVehiclesByAuction(auction.Id);
 
@@ -440,11 +445,11 @@ public class VehiclesTests
         _vehiclesHandler.Handle(command);
 
         //Assert
-        _mockAuctionsService.Received().GetAuctionById(auction.Id);
+        _auctionsQueryService.Received().GetAuctionById(auction.Id);
 
         foreach (var vhc in auction.Vehicles)
         {
-            var vehicle = _vehiclesService.GetVehicleById(vhc.Id);          
+            var vehicle = _vehiclesQueryService.GetVehicleById(vhc.Id);          
 
             vehicle.Should().NotBeNull();
             vehicle.Status.Should().Be(vhc.Status);
@@ -457,7 +462,7 @@ public class VehiclesTests
         var auction = _auctionFaker.Generate();
         auction.Status = AuctionStatuses.Closed;
 
-        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
+        _auctionsQueryService.GetAuctionById(auction.Id).Returns(auction);
 
         var command = new UpdateVehiclesByAuction(auction.Id);
 
@@ -474,7 +479,7 @@ public class VehiclesTests
             _vehiclesHandler.Handle(GenerateAddVehicleCommand());
 
         //Act
-        var availableVehicles = _vehiclesService.GetAvailableVehicles();
+        var availableVehicles = _vehiclesQueryService.GetAvailableVehicles();
 
         //Assert
         availableVehicles.Should().NotBeNull();
@@ -488,17 +493,17 @@ public class VehiclesTests
         //Arrange
         var auction = GenerateOpenAuction(VehicleStatuses.Sold);
 
-        _mockAuctionsService.GetAuctionById(auction.Id).Returns(auction);
+        _auctionsQueryService.GetAuctionById(auction.Id).Returns(auction);
 
         //Act
         var command = new UpdateVehiclesByAuction(auction.Id);
 
         _vehiclesHandler.Handle(command); 
 
-        var availableVehicles = _vehiclesService.GetAvailableVehicles();
+        var availableVehicles = _vehiclesQueryService.GetAvailableVehicles();
 
         //Assert
-        _mockAuctionsService.Received().GetAuctionById(auction.Id);
+        _auctionsQueryService.Received().GetAuctionById(auction.Id);
         availableVehicles.Should().NotBeNull();
         availableVehicles.Vehicles.Should().NotBeNull();
         availableVehicles.Vehicles.Should().HaveCount(0);
@@ -511,8 +516,8 @@ public class VehiclesTests
 
         _vehiclesHandler.Handle(GenerateAddVehicleCommand());
 
-        var addedVehicle = _vehiclesService.GetAvailableVehicles().Vehicles.First();
-        var returedVehicle = _vehiclesService.GetVehicleById(addedVehicle.Id);
+        var addedVehicle = _vehiclesQueryService.GetAvailableVehicles().Vehicles.First();
+        var returedVehicle = _vehiclesQueryService.GetVehicleById(addedVehicle.Id);
 
         // Assert
         returedVehicle.Should()
@@ -522,7 +527,7 @@ public class VehiclesTests
     [Fact]
     public void GetVehicleById_ShouldThrowException_WhenVehicleIsNotFound()
     {
-        _vehiclesService.Invoking(x => x.GetVehicleById(99999))
+        _vehiclesQueryService.Invoking(x => x.GetVehicleById(99999))
                         .Should().Throw<VehiclesException>()
                         .WithMessage("Vehicle with id 99999 not found.");
     }    
