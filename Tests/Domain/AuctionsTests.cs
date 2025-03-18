@@ -19,11 +19,9 @@ public class AuctionsTests
         _vehiclesHandler = Substitute.For<IVehiclesHandler>();
         _vehiclesQueryService = Substitute.For<IVehiclesQueryService>();
 
-        var _repository = AuctionsFactory.CreateAuctionsRepository();
+        var _repository = AuctionsFactory.CreateAuctionsRepository();     
 
-        var _auctionsCommandService = AuctionsFactory.CreateAuctionsCommandService(_repository, _vehiclesHandler, _vehiclesQueryService);
-
-        _auctionsHandler = AuctionsFactory.CreateAuctionsHandler(_auctionsCommandService);
+        _auctionsHandler = AuctionsFactory.CreateAuctionsHandler(_repository, _vehiclesHandler, _vehiclesQueryService);
         _auctionsQueryService = AuctionsFactory.CreateAuctionsQueryService(_repository);
 
         _vehiclesFaker = new Faker<VehicleInfo>()

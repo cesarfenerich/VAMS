@@ -8,11 +8,11 @@ public static class VehiclesFactory
         => new VehiclesRepository();
 
     public static IVehiclesQueryService CreateVehiclesQueryService(IVehiclesRepository repository)
-        => new VehiclesQueryService(repository);
+        => new VehiclesQueryService(repository);      
 
-    public static IVehiclesCommandService CreateVehiclesCommandService(IVehiclesRepository vehiclesRepository, IAuctionsQueryService auctionsQueryService)
-       => new VehiclesCommandService(vehiclesRepository, auctionsQueryService);       
+    public static IVehiclesHandler CreateVehiclesHandler(IVehiclesRepository vehiclesRepository, IAuctionsQueryService auctionsQueryService) 
+        => new VehiclesHandler(CreateVehiclesCommandService(vehiclesRepository, auctionsQueryService));
 
-    public static IVehiclesHandler CreateVehiclesHandler(IVehiclesCommandService vehiclesCommandService) 
-        => new VehiclesHandler(vehiclesCommandService);
+    private static IVehiclesCommandService CreateVehiclesCommandService(IVehiclesRepository vehiclesRepository, IAuctionsQueryService auctionsQueryService)
+        => new VehiclesCommandService(vehiclesRepository, auctionsQueryService);
 }

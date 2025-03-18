@@ -16,13 +16,11 @@ internal class Program(IVehiclesHandler vehiclesHandler,
     private static void Main(string[] args)
     {
         var auctionsRepository = AuctionsFactory.CreateAuctionsRepository();
-        var auctionsQueryService = AuctionsFactory.CreateAuctionsQueryService(auctionsRepository);     
+        var auctionsQueryService = AuctionsFactory.CreateAuctionsQueryService(auctionsRepository);
         var vehiclesRepository = VehiclesFactory.CreateVehiclesRepository();
-        var vehiclesCommandService = VehiclesFactory.CreateVehiclesCommandService(vehiclesRepository, auctionsQueryService);
-        var vehiclesHandler = VehiclesFactory.CreateVehiclesHandler(vehiclesCommandService);
         var vehiclesQueryService = VehiclesFactory.CreateVehiclesQueryService(vehiclesRepository);
-        var auctionsCommandService = AuctionsFactory.CreateAuctionsCommandService(auctionsRepository, vehiclesHandler, vehiclesQueryService);
-        var auctionsHandler = AuctionsFactory.CreateAuctionsHandler(auctionsCommandService);
+        var vehiclesHandler = VehiclesFactory.CreateVehiclesHandler(vehiclesRepository, auctionsQueryService);
+        var auctionsHandler = AuctionsFactory.CreateAuctionsHandler(auctionsRepository, vehiclesHandler, vehiclesQueryService);        
 
         var serviceProvider = new ServiceCollection()
           .AddSingleton(vehiclesHandler)
@@ -175,20 +173,22 @@ internal class Program(IVehiclesHandler vehiclesHandler,
 
     private void SearchVehiclesByType()
     {
-        Console.WriteLine("");        
+        Console.WriteLine("");
+
+        var type = new Faker().PickRandom<VehicleTypes>();
 
         var search = new Dictionary<VehicleSearchFields, dynamic>()
         {
-            { VehicleSearchFields.Type, new Faker().PickRandom<VehicleTypes>() }
+            { VehicleSearchFields.Type, type }
         };
 
         var result = vehiclesQueryService.SearchVehicles(search).Vehicles;
 
         if (result.Count == 0)
-            Console.WriteLine("No vehicles were found.");
+            Console.WriteLine($"No {type} vehicles were found.");
         else
         {
-            Console.WriteLine("Found Vehicles:");
+            Console.WriteLine($"Found {result.Count} {type} Vehicles:");
 
             result.ForEach(vhc => PrintVehicle(vhc));    
         }
@@ -217,7 +217,7 @@ internal class Program(IVehiclesHandler vehiclesHandler,
         var vehicleId = auction?.Vehicles.Last().Id ?? 0;
         var vehicle = _vehiclesQueryService.GetVehicleById(vehicleId);
 
-        _auctionsHandler.Handle(GetFakeBid(auction?.Id ?? 0, vehicle));
+        _auctionsHandler.Handle(GetFakeBid(auction?.Id ?? 0, vehicle, false));
 
         var act = _auctionsQueryService.GetAuctions().Auctions.Last();
 
@@ -286,7 +286,7 @@ internal class Program(IVehiclesHandler vehiclesHandler,
     private static void PrintVehicle(VehicleInfo vehicle)
     {
         Console.WriteLine();
-        Console.WriteLine($"Vehicle ({vehicle.Id})");
+        Console.WriteLine($"Vehicle #{vehicle.Id}");
         Console.WriteLine($"Type: {vehicle.Type}");
         Console.WriteLine($"Manufacturer: {vehicle.Manufacturer}");
         Console.WriteLine($"Model: {vehicle.Model}");
@@ -301,7 +301,7 @@ internal class Program(IVehiclesHandler vehiclesHandler,
     private static void PrintAuction(AuctionInfo auction)
     {
         Console.WriteLine();
-        Console.WriteLine($"Auction ({auction.Id})");
+        Console.WriteLine($"Auction #{auction.Id}");
         Console.WriteLine($"StartedAt: {auction.Start}");
         Console.WriteLine($"EndsAt: {auction.End}");
         Console.WriteLine($"Status: {auction.Status}");
@@ -314,7 +314,7 @@ internal class Program(IVehiclesHandler vehiclesHandler,
         foreach (var vehicle in auctionVehicles)
         {
             Console.WriteLine();
-            Console.WriteLine($"Vehicle ({vehicle.Id})");
+            Console.WriteLine($"Vehicle #{vehicle.Id}");
             Console.WriteLine($"Type: {vehicle.Type}");          
             Console.WriteLine($"StartingBid: {vehicle.StartingBid}");
             Console.WriteLine($"WinnerBid: {vehicle.WinnerBid}");
@@ -328,7 +328,7 @@ internal class Program(IVehiclesHandler vehiclesHandler,
         var count = 1;
         foreach (var bid in bids)
         {
-            Console.WriteLine($"Bid {(count)}: {bid.Amount}");
+            Console.WriteLine($"Bid #{count}: {bid.Amount}");
 
             count++;
         }

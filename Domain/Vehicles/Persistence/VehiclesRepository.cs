@@ -41,7 +41,7 @@ internal class VehiclesRepository : IVehiclesRepository
 #pragma warning restore CS8602 // Dereference of a possibly null reference.
                     var fieldValue = Convert.ChangeType(searchField.Value, property?.PropertyType);
 
-                    if (!match) //--> Uncomment this line to define the search as an OR
+                    if (!match) //--> Condition mentioned above
                         break;
 
                     match = (propertyValue?.Equals(fieldValue));

@@ -10,12 +10,18 @@ public static class AuctionsFactory
     public static IAuctionsQueryService CreateAuctionsQueryService(IAuctionsRepository auctionsRepository)
         => new AuctionsQueryService(auctionsRepository);
 
-    public static IAuctionsHandler CreateAuctionsHandler(IAuctionsCommandService auctionsCommandService)
-        => new AuctionsHandler(auctionsCommandService);
+    public static IAuctionsHandler CreateAuctionsHandler(IAuctionsRepository auctionsRepository,
+                                                         IVehiclesHandler vehiclesHandler,
+                                                         IVehiclesQueryService vehiclesQueryService)
+    {
+        return new AuctionsHandler(CreateAuctionsCommandService(auctionsRepository,
+                                                                vehiclesHandler,
+                                                                vehiclesQueryService));
+    }
 
-    public static IAuctionsCommandService CreateAuctionsCommandService(IAuctionsRepository auctionsRepository,
-                                                                       IVehiclesHandler vehiclesHandler,
-                                                                       IVehiclesQueryService vehiclesQueryService)
+    private static IAuctionsCommandService CreateAuctionsCommandService(IAuctionsRepository auctionsRepository,
+                                                                        IVehiclesHandler vehiclesHandler,
+                                                                        IVehiclesQueryService vehiclesQueryService)
     {
         return new AuctionsCommandService(auctionsRepository, vehiclesHandler, vehiclesQueryService);
     }    

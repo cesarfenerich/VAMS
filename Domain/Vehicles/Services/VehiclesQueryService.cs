@@ -15,8 +15,14 @@ internal class VehiclesQueryService(IVehiclesRepository vehiclesRepository) : IV
     public VehiclesView SearchVehicles(Dictionary<VehicleSearchFields, dynamic> search)
     {
         if (search.Count == 0)
-            throw new VehiclesException("At least one field is required to Search a vehicle.");       
-
-        return new VehiclesView(_vehicles.GetByCriteria(search).Select(y => y.AsModel()).ToList());
+            throw new VehiclesException("At least one field is required to Search a vehicle.");
+        try
+        {           
+            return new VehiclesView(_vehicles.GetByCriteria(search).Select(y => y.AsModel()).ToList());
+        }       
+        catch (Exception ex)
+        {
+            throw new VehiclesException($"Search by criteria failed.");
+        }        
     }   
 }

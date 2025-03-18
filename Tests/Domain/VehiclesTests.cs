@@ -18,11 +18,9 @@ public class VehiclesTests
     {              
         _auctionsQueryService = Substitute.For<IAuctionsQueryService>();
 
-        var _repository = VehiclesFactory.CreateVehiclesRepository();
+        var _repository = VehiclesFactory.CreateVehiclesRepository();     
 
-        var _vehiclesCommandService = VehiclesFactory.CreateVehiclesCommandService(_repository, _auctionsQueryService);
-
-        _vehiclesHandler = VehiclesFactory.CreateVehiclesHandler(_vehiclesCommandService);
+        _vehiclesHandler = VehiclesFactory.CreateVehiclesHandler(_repository, _auctionsQueryService);
         _vehiclesQueryService = VehiclesFactory.CreateVehiclesQueryService(_repository);
 
         var _bidFaker = new Faker<BidInfo>()
@@ -428,8 +426,8 @@ public class VehiclesTests
 
         // Act & Assert
         _vehiclesQueryService.Invoking(x => x.SearchVehicles(search))
-                        .Should().Throw<VehiclesException>()
-                        .WithMessage($"At least one field is required to Search a vehicle.");
+                              .Should().Throw<VehiclesException>()
+                              .WithMessage($"At least one field is required to Search a vehicle.");
     }
     [Fact]
     public void UpdateInventoryByAuction_ShouldUpdateVehicleStatusProperly()
