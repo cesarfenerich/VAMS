@@ -26,7 +26,7 @@ internal class AuctionsCommandService(IAuctionsRepository auctionsRepository,
     public void PlaceBid(PlaceBid command)
     {
         var auction = _auctions.GetById(command.AuctionId) ??
-                      throw new AuctionsException($"Auction {command.AuctionId} was not found.");
+                      throw new AuctionsException($"Auction {command.AuctionId} was not found.");       
 
         auction.PlaceBid(command.VehicleId, command.Amount);
     }

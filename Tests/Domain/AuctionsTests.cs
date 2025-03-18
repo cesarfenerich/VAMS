@@ -24,7 +24,7 @@ public class AuctionsTests
         var _auctionsCommandService = AuctionsFactory.CreateAuctionsCommandService(_repository, _vehiclesHandler, _vehiclesQueryService);
 
         _auctionsHandler = AuctionsFactory.CreateAuctionsHandler(_auctionsCommandService);
-        _auctionsQueryService = AuctionsFactory.CreateAuctionsQueryService(_repository);     
+        _auctionsQueryService = AuctionsFactory.CreateAuctionsQueryService(_repository);
 
         _vehiclesFaker = new Faker<VehicleInfo>()
             .RuleFor(x => x.Id, f => f.Random.Number(1, 1000))
@@ -42,7 +42,7 @@ public class AuctionsTests
         var faker = _vehiclesFaker.RuleFor(x => x.Status, f => addedVehicleStatuses);
         var vehicles = faker.Generate(vehiclesToAdd);
 
-        var auctionCommand = new StartAuction([.. vehicles.Select(x => x.Id)], endDate);
+        var auctionCommand = new StartAuction(vehicles.Select(x => x.Id).ToList(), endDate);
 
         _vehiclesQueryService.GetAvailableVehicles().Returns(new VehiclesView(vehicles));
 
@@ -100,7 +100,7 @@ public class AuctionsTests
         var faker = _vehiclesFaker.RuleFor(x => x.Status, f => VehicleStatuses.Available);
         var vehicles = faker.Generate(10);
 
-        var command = new StartAuction([.. vehicles.Select(x => x.Id)],
+        var command = new StartAuction(vehicles.Select(x => x.Id).ToList(),
                                       new Faker().Date.Future());
         vehicles.RemoveAt(0);
         vehicles.RemoveAt(1);      

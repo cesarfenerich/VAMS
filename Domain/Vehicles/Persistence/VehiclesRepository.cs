@@ -16,16 +16,16 @@ internal class VehiclesRepository : IVehiclesRepository
         => _inventory.Count == 0 ? 0 : _inventory.Max(x => x.Id);
 
     public List<Vehicle> GetByStatus(VehicleStatuses status) 
-        => [.. _inventory.Where(x => x.Status == status)];
+        => _inventory.Where(x => x.Status == status).ToList();
 
     public Vehicle? GetById(long id) 
         => _inventory.FirstOrDefault(x => x.Id == id);
 
     public List<Vehicle> GetByIds(List<long> ids)
-        => [.. _inventory.Where(x => ids.Contains(x.Id))];
+        => _inventory.Where(x => ids.Contains(x.Id)).ToList();
 
     public List<Vehicle> GetByCriteria(Dictionary<VehicleSearchFields, dynamic> search)
-        => [.. _inventory.Where(vehicle =>
+        => _inventory.Where(vehicle =>
         {
             bool match = true; //This boolean, together with the condition below, define the search as an AND.
                                //If is set to false, and the condition is commented, it defines the search as an OR. (tests may fail)
@@ -51,5 +51,5 @@ internal class VehiclesRepository : IVehiclesRepository
 
             return match;
 
-        })];
+        }).ToList();
 }

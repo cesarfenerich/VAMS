@@ -59,7 +59,7 @@ internal record Auction
         return new AuctionInfo()
         {
             Id = Id,
-            Vehicles = [.. Vehicles.Select(x => x.AsModel())],
+            Vehicles = Vehicles.Select(x => x.AsModel()).ToList(),
             Start = Start,
             End = End,
             Status = Status            

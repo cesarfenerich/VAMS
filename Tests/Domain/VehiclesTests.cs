@@ -454,23 +454,7 @@ public class VehiclesTests
             vehicle.Should().NotBeNull();
             vehicle.Status.Should().Be(vhc.Status);
         }
-    }   
-    [Fact]
-    public void UpdateInventoryByAuction_ShouldThrowException_WhenAuctionIsClosed()
-    {
-        // Arrange
-        var auction = _auctionFaker.Generate();
-        auction.Status = AuctionStatuses.Closed;
-
-        _auctionsQueryService.GetAuctionById(auction.Id).Returns(auction);
-
-        var command = new UpdateVehiclesByAuction(auction.Id);
-
-        // Act & Assert
-        _vehiclesHandler.Invoking(x => x.Handle(command))
-                        .Should().Throw<VehiclesException>()
-                        .WithMessage($"Cannot update because the auction ({auction.Id}) is closed.");
-    }    
+    }       
     [Fact]
     public void GetAvailableVehicles_ShouldReturnOnlyAvailableVehicles()
     {

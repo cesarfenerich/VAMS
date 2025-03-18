@@ -14,5 +14,5 @@ internal class AuctionsQueryService(IAuctionsRepository auctionsRepository) : IA
     }
 
     public AuctionsView GetAuctions()
-        => new([.. _auctions.GetAll().Select(x => x.AsModel())]);    
+        => new(_auctions.GetAll().Select(x => x.AsModel()).ToList());    
 }

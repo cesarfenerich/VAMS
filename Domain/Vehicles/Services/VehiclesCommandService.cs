@@ -25,11 +25,7 @@ internal class VehiclesCommandService(IVehiclesRepository vehiclesRepository, IA
 
     public void UpdateInventoryByAuction(UpdateVehiclesByAuction command)
     {
-        var auction = _auctionsQueryService.GetAuctionById(command.AuctionId);
-
-        if (auction.Status == AuctionStatuses.Closed)
-            throw new VehiclesException($"Cannot update because the auction ({auction.Id}) is closed.");
-
+        var auction = _auctionsQueryService.GetAuctionById(command.AuctionId);      
         var vhcIds = auction.Vehicles.Select(x => x.Id).ToList();
         var vhcs = _vehicles.GetByIds(vhcIds).ToList();
 

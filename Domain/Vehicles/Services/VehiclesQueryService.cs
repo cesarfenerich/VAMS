@@ -7,7 +7,7 @@ internal class VehiclesQueryService(IVehiclesRepository vehiclesRepository) : IV
     readonly IVehiclesRepository _vehicles = vehiclesRepository;  
 
     public VehiclesView GetAvailableVehicles()
-        => new([.._vehicles.GetByStatus(VehicleStatuses.Available).Select(x => x.AsModel())]);
+        => new (_vehicles.GetByStatus(VehicleStatuses.Available).Select(x => x.AsModel()).ToList());
 
     public VehicleInfo GetVehicleById(long id) 
         => _vehicles.GetById(id)?.AsModel() ?? throw new VehiclesException($"Vehicle with id {id} not found.");    
@@ -17,6 +17,6 @@ internal class VehiclesQueryService(IVehiclesRepository vehiclesRepository) : IV
         if (search.Count == 0)
             throw new VehiclesException("At least one field is required to Search a vehicle.");       
 
-        return new VehiclesView([.. _vehicles.GetByCriteria(search).Select(y => y.AsModel())]);
+        return new VehiclesView(_vehicles.GetByCriteria(search).Select(y => y.AsModel()).ToList());
     }   
 }

@@ -57,7 +57,7 @@ internal record Vehicle
             Year = Year,
             StartingBid = StartingBid,
             WinnerBid = WinnerBid,
-            Bids = [.. Bids.Select(x => x.AsModel(WinnerBid ?? 0))],
+            Bids = Bids.Select(x => x.AsModel(WinnerBid ?? 0)).ToList(),
             Status = Status
         };
     }
