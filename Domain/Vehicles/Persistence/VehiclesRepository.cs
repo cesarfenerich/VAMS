@@ -10,7 +10,7 @@ internal class VehiclesRepository : IVehiclesRepository
         => _inventory.Add(vehicle);
 
     public void Remove(Vehicle vehicle)
-        => _inventory.Add(vehicle);
+        => _inventory.Remove(vehicle);
 
     public long GetLastId() 
         => _inventory.Count == 0 ? 0 : _inventory.Max(x => x.Id);

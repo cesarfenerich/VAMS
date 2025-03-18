@@ -10,7 +10,7 @@ internal class AuctionsRepository : IAuctionsRepository
         => _inventory.Add(auction);
 
     public void Remove(Auction auction)
-        => _inventory.Add(auction);
+        => _inventory.Remove(auction);
 
     public long GetLastId()
         => _inventory.Count == 0 ? 0 : _inventory.Max(x => x.Id);

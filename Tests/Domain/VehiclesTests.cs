@@ -377,7 +377,7 @@ public class VehiclesTests
     public void SearchVehicles_ShouldReturnVehiclesFilteredByYear()
     {
         // Arrange
-        for (int i = 1; i <= 100; i++)
+        for (int i = 1; i <= 500; i++)
             _vehiclesHandler.Handle(GenerateAddVehicleCommand());
 
         var year = new Faker().Random.Number(1990, 2025);
